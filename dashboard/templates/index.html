@@ -3,161 +3,295 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quantum HealthGuard</title>
+  <title>Quantum HealthGuard — Client Patient Portal</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Courier New', monospace;
-      background: #0d1117;
-      color: #c9d1d9;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
       padding: 1.5rem;
+      min-height: 100vh;
     }
-    header {
-      text-align: center;
-      margin-bottom: 2rem;
-      border-bottom: 1px solid #30363d;
-      padding-bottom: 1rem;
-    }
-    header h1 { font-size: 1.8rem; color: #58d68d; letter-spacing: 3px; }
-    header p  { color: #6e7681; font-size: 0.85rem; margin-top: 0.3rem; }
-
-    .cards {
+    nav {
       display: flex;
-      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      background: #1e293b;
+      padding: 1rem 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      border: 1px solid #334155;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .brand i { color: #ef4444; font-size: 1.5rem; }
+    .nav-links {
+      display: flex;
       gap: 1rem;
-      justify-content: center;
-      margin-bottom: 2rem;
+      align-items: center;
+    }
+    .nav-btn {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-client { background: #0284c7; color: white; }
+    .btn-admin  { background: #334155; color: #cbd5e1; border: 1px solid #475569; }
+    .btn-admin:hover { background: #475569; color: white; }
+
+    .patient-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1e293b;
+      padding: 1rem 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      border-left: 4px solid #38bdf8;
+    }
+    .patient-info { display: flex; gap: 2rem; align-items: center; }
+    .info-tag { font-size: 0.85rem; color: #94a3b8; }
+    .info-val { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+
+    .status-badge {
+      padding: 0.4rem 1.2rem;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      letter-spacing: 1px;
+    }
+    .badge-NORMAL    { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }
+    .badge-MODERATE  { background: rgba(234, 179, 8, 0.2);  color: #facc15; border: 1px solid #eab308; }
+    .badge-HIGH_RISK { background: rgba(239, 68, 68, 0.2);   color: #f87171; border: 1px solid #ef4444; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+    .grid-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
     }
     .card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 1.2rem 1.8rem;
-      min-width: 160px;
-      text-align: center;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
     }
-    .card .label { font-size: 0.75rem; color: #6e7681; text-transform: uppercase; letter-spacing: 1px; }
-    .card .value { font-size: 2rem; font-weight: bold; margin: 0.4rem 0; color: #58d68d; }
-    .card .unit  { font-size: 0.8rem; color: #6e7681; }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+    }
+    .card-hr::before   { background: #ef4444; }
+    .card-spo2::before { background: #38bdf8; }
+    .card-temp::before { background: #f59e0b; }
+    .card-stat::before { background: #a855f7; }
 
-    .risk-NORMAL    { color: #2ecc71 !important; }
-    .risk-MODERATE  { color: #f39c12 !important; }
-    .risk-HIGH_RISK { color: #e74c3c !important; animation: blink 1s infinite; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #94a3b8;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .card-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin: 0.5rem 0 0.2rem 0;
+      color: #f8fafc;
+    }
+    .card-unit { font-size: 0.8rem; color: #64748b; }
 
-    #chart-container {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 1rem;
+    .chart-box {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .chart-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       margin-bottom: 1rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #cbd5e1;
     }
-    canvas { width: 100% !important; }
 
-    #status-bar {
+    footer {
       text-align: center;
-      font-size: 0.75rem;
-      color: #6e7681;
+      font-size: 0.8rem;
+      color: #64748b;
       margin-top: 1rem;
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>🩺 QUANTUM HEALTHGUARD</h1>
-    <p>Real-time Patient Monitoring — Prototype</p>
-  </header>
 
-  <div class="cards">
-    <div class="card">
-      <div class="label">Heart Rate</div>
-      <div class="value" id="hr">--</div>
-      <div class="unit">BPM</div>
+  <!-- Navigation Header -->
+  <nav>
+    <div class="brand">
+      <i class="fa-solid fa-heart-pulse"></i>
+      <span>Quantum HealthGuard</span>
     </div>
-    <div class="card">
-      <div class="label">SpO₂</div>
-      <div class="value" id="spo2">--</div>
-      <div class="unit">%</div>
+    <div class="nav-links">
+      <a href="/" class="nav-btn btn-client"><i class="fa-solid fa-user"></i> Patient Client View</a>
+      <a href="/admin" class="nav-btn btn-admin"><i class="fa-solid fa-user-gear"></i> Admin Control Center</a>
     </div>
-    <div class="card">
-      <div class="label">Temperature</div>
-      <div class="value" id="temp">--</div>
-      <div class="unit">°C</div>
+  </nav>
+
+  <!-- Patient Vitals Bar -->
+  <div class="patient-bar">
+    <div class="patient-info">
+      <div>
+        <div class="info-tag">PATIENT ID</div>
+        <div class="info-val">P001 (Simulated Baseline)</div>
+      </div>
+      <div>
+        <div class="info-tag">MONITORING MODE</div>
+        <div class="info-val" style="color: #38bdf8;"><i class="fa-solid fa-wifi"></i> Edge MQTT Live Streaming</div>
+      </div>
+      <div>
+        <div class="info-tag">LAST DATA TIME</div>
+        <div class="info-val" id="last-update">Waiting...</div>
+      </div>
     </div>
-    <div class="card">
-      <div class="label">Risk Level</div>
-      <div class="value" id="risk">--</div>
-      <div class="unit" id="last-update">waiting...</div>
+    <div>
+      <span class="status-badge badge-NORMAL" id="status-badge">STATUS: NORMAL</span>
     </div>
   </div>
 
-  <div id="chart-container">
-    <canvas id="hrChart" height="120"></canvas>
+  <!-- Real-Time Vital Cards -->
+  <div class="grid-cards">
+    <div class="card card-hr">
+      <div class="card-header">
+        <span>Heart Rate</span>
+        <i class="fa-solid fa-heartbeat" style="color: #ef4444;"></i>
+      </div>
+      <div class="card-value" id="val-hr">--</div>
+      <div class="card-unit">Beats Per Minute (BPM)</div>
+    </div>
+
+    <div class="card card-spo2">
+      <div class="card-header">
+        <span>Blood Oxygen (SpO₂)</span>
+        <i class="fa-solid fa-lungs" style="color: #38bdf8;"></i>
+      </div>
+      <div class="card-value" id="val-spo2">--</div>
+      <div class="card-unit">Oxygen Saturation (%)</div>
+    </div>
+
+    <div class="card card-temp">
+      <div class="card-header">
+        <span>Body Temperature</span>
+        <i class="fa-solid fa-temperature-high" style="color: #f59e0b;"></i>
+      </div>
+      <div class="card-value" id="val-temp">--</div>
+      <div class="card-unit">Celsius (°C)</div>
+    </div>
+
+    <div class="card card-stat">
+      <div class="card-header">
+        <span>Total Logged Readings</span>
+        <i class="fa-solid fa-database" style="color: #a855f7;"></i>
+      </div>
+      <div class="card-value" id="val-total">0</div>
+      <div class="card-unit">SQLite Local Storage</div>
+    </div>
   </div>
 
-  <div id="status-bar">Auto-refresh every 3 seconds | Data from SQLite database</div>
+  <!-- Real-Time Chart -->
+  <div class="chart-box">
+    <div class="chart-title">
+      <span><i class="fa-solid fa-chart-line"></i> Real-Time Physiological Time-Series</span>
+      <span style="font-size: 0.8rem; color: #64748b;">Polling every 3 sec | Chart.js</span>
+    </div>
+    <canvas id="vitalsChart" height="90"></canvas>
+  </div>
+
+  <footer>
+    Quantum HealthGuard — Real-Time IoT Biomedical Gateway & AI Predictor | Student Prototype
+  </footer>
 
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    const ctx = document.getElementById('hrChart').getContext('2d');
+    const ctx = document.getElementById('vitalsChart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: [],
         datasets: [
-          { label: 'Heart Rate (BPM)', data: [], borderColor: '#e74c3c', tension: 0.3, fill: false, pointRadius: 2 },
-          { label: 'SpO₂ (%)',         data: [], borderColor: '#3498db', tension: 0.3, fill: false, pointRadius: 2 },
-          { label: 'Temperature (°C)', data: [], borderColor: '#f39c12', tension: 0.3, fill: false, pointRadius: 2 }
+          { label: 'Heart Rate (BPM)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', tension: 0.3, fill: true, pointRadius: 2 },
+          { label: 'SpO₂ (%)',         data: [], borderColor: '#38bdf8', backgroundColor: 'transparent', tension: 0.3, fill: false, pointRadius: 2 },
+          { label: 'Temperature (°C)', data: [], borderColor: '#f59e0b', backgroundColor: 'transparent', tension: 0.3, fill: false, pointRadius: 2 }
         ]
       },
       options: {
         responsive: true,
         animation: false,
-        plugins: { legend: { labels: { color: '#c9d1d9' } } },
+        plugins: { legend: { labels: { color: '#cbd5e1' } } },
         scales: {
-          x: { ticks: { color: '#6e7681', maxTicksLimit: 8 }, grid: { color: '#21262d' } },
-          y: { ticks: { color: '#6e7681' }, grid: { color: '#21262d' } }
+          x: { ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { color: '#334155' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
         }
       }
     });
 
-    function timeLabel(ts) {
-      return ts ? ts.substring(11, 19) : '';
-    }
-
-    async function refresh() {
+    async function fetchClientData() {
       try {
-        // Latest reading
-        const latestRes = await fetch('/api/latest');
-        const latest = await latestRes.json();
+        const res = await fetch('/api/latest');
+        const latest = await res.json();
         if (latest && latest.heart_rate !== undefined) {
-          document.getElementById('hr').textContent   = latest.heart_rate;
-          document.getElementById('spo2').textContent = latest.spo2;
-          document.getElementById('temp').textContent = latest.temperature;
+          document.getElementById('val-hr').textContent   = latest.heart_rate;
+          document.getElementById('val-spo2').textContent = latest.spo2;
+          document.getElementById('val-temp').textContent = latest.temperature;
 
-          const riskEl = document.getElementById('risk');
-          riskEl.textContent  = latest.risk;
-          riskEl.className    = 'value risk-' + latest.risk;
-          document.getElementById('last-update').textContent =
-            'Updated: ' + (latest.timestamp ? latest.timestamp.substring(11,19) + ' UTC' : 'now');
+          const badge = document.getElementById('status-badge');
+          const risk = latest.risk_level || 'NORMAL';
+          badge.textContent = 'STATUS: ' + risk;
+          badge.className = 'status-badge badge-' + risk;
+
+          if (latest.timestamp) {
+            const dt = new Date(latest.timestamp);
+            document.getElementById('last-update').textContent = dt.toLocaleTimeString();
+          }
         }
 
-        // Historical chart
-        const histRes = await fetch('/api/data');
-        const hist    = await histRes.json();
-        chart.data.labels              = hist.map(d => timeLabel(d.timestamp));
-        chart.data.datasets[0].data   = hist.map(d => d.heart_rate);
-        chart.data.datasets[1].data   = hist.map(d => d.spo2);
-        chart.data.datasets[2].data   = hist.map(d => d.temperature);
+        const statsRes = await fetch('/api/stats');
+        const stats = await statsRes.json();
+        document.getElementById('val-total').textContent = stats.total_readings || 0;
+
+        const dataRes = await fetch('/api/data?limit=40');
+        const hist = await dataRes.json();
+        chart.data.labels = hist.map(d => d.timestamp ? d.timestamp.substring(11, 19) : '');
+        chart.data.datasets[0].data = hist.map(d => d.heart_rate);
+        chart.data.datasets[1].data = hist.map(d => d.spo2);
+        chart.data.datasets[2].data = hist.map(d => d.temperature);
         chart.update('none');
-      } catch(e) {
-        document.getElementById('status-bar').textContent = 'Waiting for data...';
+      } catch (err) {
+        console.error("Client fetch error:", err);
       }
     }
 
-    refresh();
-    setInterval(refresh, 3000);
+    fetchClientData();
+    setInterval(fetchClientData, 3000);
   </script>
 </body>
 </html>

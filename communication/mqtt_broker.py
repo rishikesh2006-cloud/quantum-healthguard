@@ -30,7 +30,7 @@ BROKER_CONFIG = {
     "sys_interval": 0,
     "auth": {
         "allow-anonymous": True,
-        "plugins": [],
+        "plugins": ["auth_anonymous"],
     },
     "topic-check": {
         "enabled": False,

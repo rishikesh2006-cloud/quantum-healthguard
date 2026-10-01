@@ -21,10 +21,22 @@ from dotenv import load_dotenv
 load_dotenv()
 import config
 
-# ─── MQTT Setup ───────────────────────────────────────────────────
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+# Fix Windows console encoding for Python 3.13+
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
 
-def on_connect(client, userdata, flags, rc):
+# ─── MQTT Setup ───────────────────────────────────────────────────
+try:
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+except AttributeError:
+    client = mqtt.Client()
+
+def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         print(f"[SIM] Connected to MQTT broker at {config.MQTT_BROKER}:{config.MQTT_PORT}")
     else:
@@ -83,7 +95,7 @@ if __name__ == "__main__":
     step = config.SIMULATOR_INTERVAL_SEC
 
     print("=" * 55)
-    print("  Quantum HealthGuard — Sensor Simulator")
+    print("  Quantum HealthGuard -- Sensor Simulator")
     print(f"  Publishing to {config.MQTT_BROKER}:{config.MQTT_PORT}")
     print("  Press Ctrl+C to stop.")
     print("=" * 55)
@@ -96,7 +108,7 @@ if __name__ == "__main__":
             client.publish(config.MQTT_TOPICS["vitals"], json.dumps(vitals))
             client.publish(config.MQTT_TOPICS["ecg"],    json.dumps(ecg))
 
-            icon = "🚨" if vitals["heart_rate"] > 120 or vitals["spo2"] < 92 else "✅"
+            icon = "[ALERT]" if vitals["heart_rate"] > 120 or vitals["spo2"] < 92 else "[OK]"
             print(f"{icon} HR={vitals['heart_rate']:5.1f} BPM | "
                   f"SpO2={vitals['spo2']:5.1f}% | "
                   f"Temp={vitals['temperature']:5.2f}°C")

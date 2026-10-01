@@ -18,12 +18,21 @@ from dotenv import load_dotenv
 load_dotenv()
 import config
 
+# Fix Windows console encoding for Python 3.13+
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
+
 # ─── Logging ──────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler(config.LOG_DIR / "receiver.log"),
+        logging.FileHandler(config.LOG_DIR / "receiver.log", encoding="utf-8"),
         logging.StreamHandler(sys.stdout),
     ],
 )
@@ -45,7 +54,7 @@ def init_db():
     """)
     conn.commit()
     conn.close()
-    log.info(f"Database ready → {config.DB_PATH}")
+    log.info(f"Database ready: {config.DB_PATH}")
 
 
 def save_reading(data: dict, risk: str):
@@ -95,17 +104,15 @@ def check_emergency(data: dict) -> tuple[str, list[str]]:
 
 
 # ─── MQTT Callbacks ────────────────────────────────────────────────
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         log.info(f"Connected to MQTT broker at {config.MQTT_BROKER}:{config.MQTT_PORT}")
         for topic in config.MQTT_TOPICS.values():
             client.subscribe(topic)
-            log.info(f"Subscribed → {topic}")
+            log.info(f"Subscribed: {topic}")
     else:
         log.error(f"MQTT connection failed (code {rc})")
 
-
-ICONS = {"NORMAL": "✅", "MODERATE": "⚠️ ", "HIGH_RISK": "🚨"}
 
 def on_message(client, userdata, msg):
     try:
@@ -115,13 +122,13 @@ def on_message(client, userdata, msg):
             risk, reasons = check_emergency(payload)
             save_reading(payload, risk)
 
-            icon = ICONS.get(risk, "❓")
+            icon = {"NORMAL": "[OK]", "MODERATE": "[WARN]", "HIGH_RISK": "[ALERT]"}.get(risk, "[?]")
             line = (f"{icon} [{risk:9s}]  "
                     f"HR={payload['heart_rate']:5}  "
                     f"SpO2={payload['spo2']:5}%  "
                     f"Temp={payload['temperature']}°C")
             if reasons:
-                line += f"  ⚠ {', '.join(reasons)}"
+                line += f"  - {', '.join(reasons)}"
             log.info(line)
 
     except json.JSONDecodeError:
@@ -135,7 +142,11 @@ def on_message(client, userdata, msg):
 # ─── Main ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     init_db()
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+    try:
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    except AttributeError:
+        client = mqtt.Client()
+        
     client.on_connect = on_connect
     client.on_message = on_message
 
