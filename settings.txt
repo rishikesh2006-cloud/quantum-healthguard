@@ -1,0 +1,40 @@
+# ====================================================================
+#  Quantum HealthGuard — Human Editable Settings
+#  Open this file in Notepad to change settings anytime without code!
+# ====================================================================
+
+# ─── 🛡️ ADMIN SECURITY ACCESS ──────────────────────────────────────
+# Security Question shown when accessing /admin:
+SECURITY_QUESTION = What is the secret master key for Quantum HealthGuard admin access?
+
+# Security Answer (Master Key) required to login to Admin View:
+SECURITY_ANSWER = healthguard2026
+
+# ─── 🌐 NETWORK & SERVER SETTINGS ─────────────────────────────────
+# Server Port (Default: 5000):
+PORT = 5000
+
+# Server Host (0.0.0.0 allows all devices on Wi-Fi to connect):
+HOST = 0.0.0.0
+
+# MQTT Broker Settings:
+MQTT_BROKER = localhost
+MQTT_PORT = 1883
+
+# ─── 🚨 EMERGENCY MEDICAL THRESHOLDS ──────────────────────────────
+# Heart Rate Limits (BPM):
+HR_HIGH = 120
+HR_LOW = 45
+
+# Blood Oxygen Critical Limit (%):
+SPO2_CRITICAL = 92
+
+# Body Temperature High Limit (°C):
+TEMP_HIGH = 38.5
+
+# ─── ⚡ PERFORMANCE & SYSTEM LOAD REDUCTION ────────────────────────
+# Simulator interval in seconds (Increase to 2.0 to reduce CPU load):
+SIMULATOR_SPEED_SEC = 1.0
+
+# Patient ID:
+PATIENT_ID = P001

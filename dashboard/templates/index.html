@@ -149,6 +149,14 @@
       margin-top: 1rem;
     }
   </style>
+
+  <!-- Load Local Offline Chart.js First, fallback to CDN -->
+  <script src="/static/js/chart.min.js"></script>
+  <script>
+    if (typeof Chart === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>');
+    }
+  </script>
 </head>
 <body>
 
@@ -238,7 +246,7 @@
   <div class="chart-box">
     <div class="chart-title">
       <span><i class="fa-solid fa-chart-line"></i> Real-Time Physiological Time-Series</span>
-      <span style="font-size: 0.8rem; color: #64748b;">Client JS Render | Chart.js</span>
+      <span style="font-size: 0.8rem; color: #64748b;">100% Offline Offline Ready | Chart.js</span>
     </div>
     <canvas id="vitalsChart" height="90"></canvas>
   </div>
@@ -247,8 +255,6 @@
     Quantum HealthGuard — Edge IoT Medical Gateway & AI Predictor | Student Research Prototype
   </footer>
 
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     // ── Client-Side Web Audio Synthesizer (No external audio files) ──────
     let audioEnabled = false;
@@ -276,7 +282,7 @@
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch alarm tone
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
         gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
@@ -286,33 +292,34 @@
     }
 
     // ── Chart.js Initialization ─────────────────────────────────────────
-    const ctx = document.getElementById('vitalsChart').getContext('2d');
-    const chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          { label: 'Heart Rate (BPM)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', tension: 0.3, fill: true, pointRadius: 2 },
-          { label: 'SpO₂ (%)',         data: [], borderColor: '#38bdf8', backgroundColor: 'transparent', tension: 0.3, fill: false, pointRadius: 2 },
-          { label: 'Temperature (°C)', data: [], borderColor: '#f59e0b', backgroundColor: 'transparent', tension: 0.3, fill: false, pointRadius: 2 }
-        ]
-      },
-      options: {
-        responsive: true,
-        animation: false,
-        plugins: { legend: { labels: { color: '#cbd5e1' } } },
-        scales: {
-          x: { ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { color: '#334155' } },
-          y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+    let chart = null;
+    if (typeof Chart !== 'undefined') {
+      const ctx = document.getElementById('vitalsChart').getContext('2d');
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Heart Rate (BPM)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', tension: 0.3, fill: true, pointRadius: 2 },
+            { label: 'SpO₂ (%)',         data: [], borderColor: '#38bdf8', backgroundColor: 'transparent', tension: 0.3, fill: false, pointRadius: 2 },
+            { label: 'Temperature (°C)', data: [], borderColor: '#f59e0b', backgroundColor: 'transparent', tension: 0.3, fill: false, pointRadius: 2 }
+          ]
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          plugins: { legend: { labels: { color: '#cbd5e1' } } },
+          scales: {
+            x: { ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { color: '#334155' } },
+            y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+          }
         }
-      }
-    });
+      });
+    }
 
     // ── Client-Side JS Data Processing (Offloading Python Server) ────────
     function processClientSideAnalytics(histData) {
       if (!histData || histData.length === 0) return;
-      
-      // Calculate HR Mean, Min, Max in Client JS
       const hrs = histData.map(d => d.heart_rate).filter(v => typeof v === 'number');
       if (hrs.length > 0) {
         const sum = hrs.reduce((a, b) => a + b, 0);
@@ -352,14 +359,14 @@
         const dataRes = await fetch('/api/data?limit=40');
         const hist = await dataRes.json();
         
-        // Render Chart
-        chart.data.labels = hist.map(d => d.timestamp ? d.timestamp.substring(11, 19) : '');
-        chart.data.datasets[0].data = hist.map(d => d.heart_rate);
-        chart.data.datasets[1].data = hist.map(d => d.spo2);
-        chart.data.datasets[2].data = hist.map(d => d.temperature);
-        chart.update('none');
+        if (chart) {
+          chart.data.labels = hist.map(d => d.timestamp ? d.timestamp.substring(11, 19) : '');
+          chart.data.datasets[0].data = hist.map(d => d.heart_rate);
+          chart.data.datasets[1].data = hist.map(d => d.spo2);
+          chart.data.datasets[2].data = hist.map(d => d.temperature);
+          chart.update('none');
+        }
 
-        // Execute JS processing on client
         processClientSideAnalytics(hist);
 
       } catch (err) {
