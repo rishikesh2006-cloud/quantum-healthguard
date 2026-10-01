@@ -1,19 +1,27 @@
-# ─── Core ────────────────────────────────────────
+# ─── Core & Utilities ────────────────────────────
 numpy>=1.26
 pandas>=2.0
 scipy>=1.11
 matplotlib>=3.8
+python-dotenv>=1.0
 
-# ─── Web Dashboard ───────────────────────────────
+# ─── Web Dashboard & Security ────────────────────
 flask>=3.0
 flask-socketio>=5.3
 
-# ─── MQTT ────────────────────────────────────────
+# ─── MQTT Messaging ──────────────────────────────
 paho-mqtt>=2.0
 amqtt>=0.11          # Pure-Python broker (no Mosquitto install needed)
 
-# ─── Machine Learning ────────────────────────────
+# ─── Classical Machine Learning ──────────────────
 scikit-learn>=1.3
 
-# ─── Utilities ───────────────────────────────────
-python-dotenv>=1.0
+# ─── Quantum Machine Learning ────────────────────
+qiskit>=2.0
+qiskit-machine-learning>=0.7
+qiskit-algorithms>=0.3
+
+# ─── Presentation Generation ─────────────────────
+python-pptx>=1.0
+lxml>=4.9
+xlsxwriter>=3.1
