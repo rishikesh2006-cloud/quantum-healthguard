@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quantum HealthGuard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 1.5rem;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 1rem;
+    }
+    header h1 { font-size: 1.8rem; color: #58d68d; letter-spacing: 3px; }
+    header p  { color: #6e7681; font-size: 0.85rem; margin-top: 0.3rem; }
+
+    .cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 1.2rem 1.8rem;
+      min-width: 160px;
+      text-align: center;
+    }
+    .card .label { font-size: 0.75rem; color: #6e7681; text-transform: uppercase; letter-spacing: 1px; }
+    .card .value { font-size: 2rem; font-weight: bold; margin: 0.4rem 0; color: #58d68d; }
+    .card .unit  { font-size: 0.8rem; color: #6e7681; }
+
+    .risk-NORMAL    { color: #2ecc71 !important; }
+    .risk-MODERATE  { color: #f39c12 !important; }
+    .risk-HIGH_RISK { color: #e74c3c !important; animation: blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    #chart-container {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    canvas { width: 100% !important; }
+
+    #status-bar {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #6e7681;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🩺 QUANTUM HEALTHGUARD</h1>
+    <p>Real-time Patient Monitoring — Prototype</p>
+  </header>
+
+  <div class="cards">
+    <div class="card">
+      <div class="label">Heart Rate</div>
+      <div class="value" id="hr">--</div>
+      <div class="unit">BPM</div>
+    </div>
+    <div class="card">
+      <div class="label">SpO₂</div>
+      <div class="value" id="spo2">--</div>
+      <div class="unit">%</div>
+    </div>
+    <div class="card">
+      <div class="label">Temperature</div>
+      <div class="value" id="temp">--</div>
+      <div class="unit">°C</div>
+    </div>
+    <div class="card">
+      <div class="label">Risk Level</div>
+      <div class="value" id="risk">--</div>
+      <div class="unit" id="last-update">waiting...</div>
+    </div>
+  </div>
+
+  <div id="chart-container">
+    <canvas id="hrChart" height="120"></canvas>
+  </div>
+
+  <div id="status-bar">Auto-refresh every 3 seconds | Data from SQLite database</div>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const ctx = document.getElementById('hrChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Heart Rate (BPM)', data: [], borderColor: '#e74c3c', tension: 0.3, fill: false, pointRadius: 2 },
+          { label: 'SpO₂ (%)',         data: [], borderColor: '#3498db', tension: 0.3, fill: false, pointRadius: 2 },
+          { label: 'Temperature (°C)', data: [], borderColor: '#f39c12', tension: 0.3, fill: false, pointRadius: 2 }
+        ]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: { legend: { labels: { color: '#c9d1d9' } } },
+        scales: {
+          x: { ticks: { color: '#6e7681', maxTicksLimit: 8 }, grid: { color: '#21262d' } },
+          y: { ticks: { color: '#6e7681' }, grid: { color: '#21262d' } }
+        }
+      }
+    });
+
+    function timeLabel(ts) {
+      return ts ? ts.substring(11, 19) : '';
+    }
+
+    async function refresh() {
+      try {
+        // Latest reading
+        const latestRes = await fetch('/api/latest');
+        const latest = await latestRes.json();
+        if (latest && latest.heart_rate !== undefined) {
+          document.getElementById('hr').textContent   = latest.heart_rate;
+          document.getElementById('spo2').textContent = latest.spo2;
+          document.getElementById('temp').textContent = latest.temperature;
+
+          const riskEl = document.getElementById('risk');
+          riskEl.textContent  = latest.risk;
+          riskEl.className    = 'value risk-' + latest.risk;
+          document.getElementById('last-update').textContent =
+            'Updated: ' + (latest.timestamp ? latest.timestamp.substring(11,19) + ' UTC' : 'now');
+        }
+
+        // Historical chart
+        const histRes = await fetch('/api/data');
+        const hist    = await histRes.json();
+        chart.data.labels              = hist.map(d => timeLabel(d.timestamp));
+        chart.data.datasets[0].data   = hist.map(d => d.heart_rate);
+        chart.data.datasets[1].data   = hist.map(d => d.spo2);
+        chart.data.datasets[2].data   = hist.map(d => d.temperature);
+        chart.update('none');
+      } catch(e) {
+        document.getElementById('status-bar').textContent = 'Waiting for data...';
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

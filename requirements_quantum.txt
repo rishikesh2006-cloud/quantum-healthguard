@@ -1,0 +1,4 @@
+# ─── Quantum (install separately — large dependency) ─
+# Uncomment the lines below ONLY after classical ML is working:
+# qiskit>=1.0
+# qiskit-machine-learning>=0.7
