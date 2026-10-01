@@ -42,13 +42,15 @@
       padding: 0.5rem 1rem;
       border-radius: 8px;
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 600;
       transition: all 0.2s;
+      cursor: pointer;
+      border: none;
     }
     .btn-client { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
     .btn-client:hover { background: #334155; color: white; }
-    .btn-admin  { background: #0284c7; color: white; }
+    .btn-logout { background: #dc2626; color: white; }
 
     .grid-stats {
       display: grid;
@@ -153,7 +155,7 @@
     </div>
     <div class="nav-links">
       <a href="/" class="nav-btn btn-client"><i class="fa-solid fa-user"></i> Patient Client View</a>
-      <a href="/admin" class="nav-btn btn-admin"><i class="fa-solid fa-user-gear"></i> Admin View</a>
+      <button class="nav-btn btn-logout" onclick="logoutAdmin()"><i class="fa-solid fa-right-from-bracket"></i> Admin Logout</button>
     </div>
   </nav>
 
@@ -259,6 +261,11 @@
       setTimeout(() => box.style.display = 'none', 4000);
     }
 
+    async function logoutAdmin() {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      window.location.href = '/';
+    }
+
     async function injectAnomaly(type) {
       try {
         const res = await fetch('/api/trigger-anomaly', {
@@ -272,7 +279,7 @@
           fetchStats();
           fetchRecords();
         } else {
-          showAlert("Failed to inject anomaly: " + data.message, true);
+          showAlert("Failed: " + (data.error || data.message), true);
         }
       } catch (err) {
         showAlert("API Error: " + err, true);
@@ -284,9 +291,13 @@
       try {
         const res = await fetch('/api/clear-db', { method: 'POST' });
         const data = await res.json();
-        showAlert(data.message);
-        fetchStats();
-        fetchRecords();
+        if (data.status === 'success') {
+          showAlert(data.message);
+          fetchStats();
+          fetchRecords();
+        } else {
+          showAlert("Failed: " + (data.error || data.message), true);
+        }
       } catch (err) {
         showAlert("Clear DB Error: " + err, true);
       }
@@ -309,6 +320,12 @@
         const data = await res.json();
         const tbody = document.getElementById('db-records-body');
         tbody.innerHTML = '';
+
+        if (data.error) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #f87171;">${data.error}</td></tr>`;
+          return;
+        }
+
         if (!data.records || data.records.length === 0) {
           tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b;">No records found.</td></tr>';
           return;

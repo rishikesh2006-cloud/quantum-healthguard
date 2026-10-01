@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quantum HealthGuard — Client Patient Portal</title>
+  <title>Quantum HealthGuard — Patient Health Portal</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,20 +35,28 @@
     .brand i { color: #ef4444; font-size: 1.5rem; }
     .nav-links {
       display: flex;
-      gap: 1rem;
+      gap: 0.75rem;
       align-items: center;
     }
     .nav-btn {
       padding: 0.5rem 1rem;
       border-radius: 8px;
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 600;
       transition: all 0.2s;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      border: none;
     }
     .btn-client { background: #0284c7; color: white; }
-    .btn-admin  { background: #334155; color: #cbd5e1; border: 1px solid #475569; }
-    .btn-admin:hover { background: #475569; color: white; }
+    .btn-admin  { background: #1e293b; color: #facc15; border: 1px solid #eab308; }
+    .btn-admin:hover { background: #eab308; color: #0f172a; }
+    .btn-export { background: #334155; color: #38bdf8; border: 1px solid #0284c7; }
+    .btn-export:hover { background: #0284c7; color: white; }
+    .btn-audio  { background: #334155; color: #cbd5e1; border: 1px solid #475569; }
 
     .patient-bar {
       display: flex;
@@ -60,7 +68,7 @@
       margin-bottom: 1.5rem;
       border-left: 4px solid #38bdf8;
     }
-    .patient-info { display: flex; gap: 2rem; align-items: center; }
+    .patient-info { display: flex; gap: 2rem; align-items: center; flex-wrap: wrap; }
     .info-tag { font-size: 0.85rem; color: #94a3b8; }
     .info-val { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
 
@@ -98,7 +106,7 @@
     .card-hr::before   { background: #ef4444; }
     .card-spo2::before { background: #38bdf8; }
     .card-temp::before { background: #f59e0b; }
-    .card-stat::before { background: #a855f7; }
+    .card-js::before   { background: #a855f7; }
 
     .card-header {
       display: flex;
@@ -148,11 +156,20 @@
   <nav>
     <div class="brand">
       <i class="fa-solid fa-heart-pulse"></i>
-      <span>Quantum HealthGuard</span>
+      <span>Quantum HealthGuard — Patient Portal</span>
     </div>
     <div class="nav-links">
-      <a href="/" class="nav-btn btn-client"><i class="fa-solid fa-user"></i> Patient Client View</a>
-      <a href="/admin" class="nav-btn btn-admin"><i class="fa-solid fa-user-gear"></i> Admin Control Center</a>
+      <button class="nav-btn btn-audio" id="audio-toggle" onclick="toggleAudioAlert()">
+        <i class="fa-solid fa-volume-xmark" id="audio-icon"></i> <span id="audio-label">Alarm Muted</span>
+      </button>
+      
+      <a href="/api/export-report" class="nav-btn btn-export" download>
+        <i class="fa-solid fa-file-csv"></i> Export Health Report
+      </a>
+
+      <a href="/admin" class="nav-btn btn-admin">
+        <i class="fa-solid fa-lock"></i> Admin Access (Security Question)
+      </a>
     </div>
   </nav>
 
@@ -165,7 +182,7 @@
       </div>
       <div>
         <div class="info-tag">MONITORING MODE</div>
-        <div class="info-val" style="color: #38bdf8;"><i class="fa-solid fa-wifi"></i> Edge MQTT Live Streaming</div>
+        <div class="info-val" style="color: #38bdf8;"><i class="fa-solid fa-wifi"></i> Edge MQTT Telemetry</div>
       </div>
       <div>
         <div class="info-tag">LAST DATA TIME</div>
@@ -206,13 +223,14 @@
       <div class="card-unit">Celsius (°C)</div>
     </div>
 
-    <div class="card card-stat">
+    <!-- Client-Side JS Processed Analytics Card (Offloads Python Server) -->
+    <div class="card card-js">
       <div class="card-header">
-        <span>Total Logged Readings</span>
-        <i class="fa-solid fa-database" style="color: #a855f7;"></i>
+        <span>JS Client Trend (Avg HR)</span>
+        <i class="fa-solid fa-microchip" style="color: #a855f7;"></i>
       </div>
-      <div class="card-value" id="val-total">0</div>
-      <div class="card-unit">SQLite Local Storage</div>
+      <div class="card-value" id="val-js-avg">--</div>
+      <div class="card-unit" id="val-js-range">JS Processing Offload</div>
     </div>
   </div>
 
@@ -220,18 +238,54 @@
   <div class="chart-box">
     <div class="chart-title">
       <span><i class="fa-solid fa-chart-line"></i> Real-Time Physiological Time-Series</span>
-      <span style="font-size: 0.8rem; color: #64748b;">Polling every 3 sec | Chart.js</span>
+      <span style="font-size: 0.8rem; color: #64748b;">Client JS Render | Chart.js</span>
     </div>
     <canvas id="vitalsChart" height="90"></canvas>
   </div>
 
   <footer>
-    Quantum HealthGuard — Real-Time IoT Biomedical Gateway & AI Predictor | Student Prototype
+    Quantum HealthGuard — Edge IoT Medical Gateway & AI Predictor | Student Research Prototype
   </footer>
 
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+    // ── Client-Side Web Audio Synthesizer (No external audio files) ──────
+    let audioEnabled = false;
+    let audioCtx = null;
+
+    function toggleAudioAlert() {
+      audioEnabled = !audioEnabled;
+      const icon = document.getElementById('audio-icon');
+      const label = document.getElementById('audio-label');
+      if (audioEnabled) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        icon.className = 'fa-solid fa-volume-high';
+        icon.style.color = '#22c55e';
+        label.textContent = 'Alarm Active';
+      } else {
+        icon.className = 'fa-solid fa-volume-xmark';
+        icon.style.color = '#cbd5e1';
+        label.textContent = 'Alarm Muted';
+      }
+    }
+
+    function triggerEmergencyBeep() {
+      if (!audioEnabled || !audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch alarm tone
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      } catch(e) {}
+    }
+
+    // ── Chart.js Initialization ─────────────────────────────────────────
     const ctx = document.getElementById('vitalsChart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
@@ -254,6 +308,23 @@
       }
     });
 
+    // ── Client-Side JS Data Processing (Offloading Python Server) ────────
+    function processClientSideAnalytics(histData) {
+      if (!histData || histData.length === 0) return;
+      
+      // Calculate HR Mean, Min, Max in Client JS
+      const hrs = histData.map(d => d.heart_rate).filter(v => typeof v === 'number');
+      if (hrs.length > 0) {
+        const sum = hrs.reduce((a, b) => a + b, 0);
+        const avg = (sum / hrs.length).toFixed(1);
+        const min = Math.min(...hrs).toFixed(1);
+        const max = Math.max(...hrs).toFixed(1);
+        
+        document.getElementById('val-js-avg').textContent = avg + ' BPM';
+        document.getElementById('val-js-range').textContent = `Min: ${min} | Max: ${max} (JS Compute)`;
+      }
+    }
+
     async function fetchClientData() {
       try {
         const res = await fetch('/api/latest');
@@ -268,23 +339,29 @@
           badge.textContent = 'STATUS: ' + risk;
           badge.className = 'status-badge badge-' + risk;
 
+          if (risk === 'HIGH_RISK') {
+            triggerEmergencyBeep();
+          }
+
           if (latest.timestamp) {
             const dt = new Date(latest.timestamp);
             document.getElementById('last-update').textContent = dt.toLocaleTimeString();
           }
         }
 
-        const statsRes = await fetch('/api/stats');
-        const stats = await statsRes.json();
-        document.getElementById('val-total').textContent = stats.total_readings || 0;
-
         const dataRes = await fetch('/api/data?limit=40');
         const hist = await dataRes.json();
+        
+        // Render Chart
         chart.data.labels = hist.map(d => d.timestamp ? d.timestamp.substring(11, 19) : '');
         chart.data.datasets[0].data = hist.map(d => d.heart_rate);
         chart.data.datasets[1].data = hist.map(d => d.spo2);
         chart.data.datasets[2].data = hist.map(d => d.temperature);
         chart.update('none');
+
+        // Execute JS processing on client
+        processClientSideAnalytics(hist);
+
       } catch (err) {
         console.error("Client fetch error:", err);
       }

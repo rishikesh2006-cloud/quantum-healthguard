@@ -17,6 +17,11 @@ MODEL_PATH = ROOT_DIR / "ml" / "rf_model.pkl"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+# ─── Flask Security & Admin Protection ───────────────────────────
+SECRET_KEY = os.getenv("SECRET_KEY", "quantum_healthguard_secret_key_2026")
+ADMIN_SECURITY_QUESTION = "What is the secret master key for Quantum HealthGuard admin access?"
+ADMIN_SECURITY_ANSWER   = os.getenv("ADMIN_SECURITY_ANSWER", "healthguard2026")
+
 # ─── MQTT ─────────────────────────────────────────────────────────
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT   = int(os.getenv("MQTT_PORT", 1883))

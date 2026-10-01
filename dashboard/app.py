@@ -2,16 +2,20 @@
 Quantum HealthGuard — Flask Web Application Server
 Serves both Client (Patient/Caregiver) and Admin Control Center interfaces,
 exposing REST APIs for telemetry, analytics, database inspection, and simulation control.
+
+Features Admin Security Question Authentication and Session Management.
 """
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, Response
 import sqlite3
 import json
 import time
+import csv
+import io
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 
@@ -19,11 +23,21 @@ load_dotenv()
 import config
 
 app = Flask(__name__)
+app.secret_key = config.SECRET_KEY
 
-# MQTT Publisher for Admin Controls / Anomaly Injection
+
+# ─── Helper Functions ──────────────────────────────────────────────────────────
+
+def is_admin_authenticated() -> bool:
+    return session.get("is_admin") is True
+
+
 def publish_mqtt_msg(topic, payload):
     try:
-        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+        try:
+            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        except AttributeError:
+            client = mqtt.Client()
         client.connect(config.MQTT_BROKER, config.MQTT_PORT, 10)
         client.publish(topic, json.dumps(payload))
         client.disconnect()
@@ -66,18 +80,43 @@ def get_readings(limit: int = 50, patient_id: str = None) -> list[dict]:
 
 @app.route("/")
 def client_dashboard():
-    """Client / Patient & Caregiver Monitoring View"""
+    """Client / Patient & Caregiver Monitoring View — Accessible to All Devices"""
     readings = get_readings(1)
     latest = readings[0] if readings else {}
-    return render_template("index.html", latest=latest)
+    return render_template("index.html", latest=latest, is_admin=is_admin_authenticated())
 
 
-# ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
+# ─── ADMIN ROUTES & SECURITY QUESTION AUTH ───────────────────────────────────
 
 @app.route("/admin")
 def admin_dashboard():
-    """Admin Management & Control Center View"""
+    """
+    Admin Management & Control Center View.
+    Protected: Only accessible if authenticated via Security Question challenge.
+    """
+    if not is_admin_authenticated():
+        return render_template("admin_auth.html", question=config.ADMIN_SECURITY_QUESTION)
     return render_template("admin.html")
+
+
+@app.route("/api/admin/verify", methods=["POST"])
+def api_admin_verify():
+    """Verifies the Security Question Answer and grants Admin session access."""
+    data = request.json or {}
+    user_answer = data.get("answer", "").strip()
+
+    if user_answer.lower() == config.ADMIN_SECURITY_ANSWER.lower():
+        session["is_admin"] = True
+        return jsonify({"status": "success", "message": "Admin access granted"})
+    else:
+        return jsonify({"status": "error", "message": "Incorrect security answer"}), 401
+
+
+@app.route("/api/admin/logout", methods=["POST"])
+def api_admin_logout():
+    """Logs out from Admin session."""
+    session.pop("is_admin", None)
+    return jsonify({"status": "success", "message": "Admin logged out"})
 
 
 # ─── REST API ENDPOINTS ────────────────────────────────────────────────────────
@@ -130,9 +169,39 @@ def api_stats():
     })
 
 
+@app.route("/api/export-report")
+def api_export_report():
+    """Generates downloadable CSV patient health report for Client or Admin."""
+    if not config.DB_PATH.exists():
+        return Response("No data available", status=404)
+
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT id, timestamp, patient_id, heart_rate, spo2, temperature, risk_level
+        FROM patient_data ORDER BY id DESC LIMIT 500
+    """).fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Record ID", "UTC Timestamp", "Patient ID", "Heart Rate (BPM)", "SpO2 (%)", "Temperature (C)", "Risk Classification"])
+
+    for r in rows:
+        writer.writerow([r["id"], r["timestamp"], r["patient_id"], r["heart_rate"], r["spo2"], r["temperature"], r["risk_level"]])
+
+    response = Response(output.getvalue(), mimetype="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=Quantum_HealthGuard_Report.csv"
+    return response
+
+
+# ─── PROTECTED ADMIN API ENDPOINTS ──────────────────────────────────────────────
+
 @app.route("/api/records")
 def api_records():
     """Paginated database records viewer for Admin"""
+    if not is_admin_authenticated():
+        return jsonify({"error": "Admin authentication required"}), 403
+
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 20))
     offset = (page - 1) * per_page
@@ -167,6 +236,9 @@ def api_records():
 @app.route("/api/trigger-anomaly", methods=["POST"])
 def api_trigger_anomaly():
     """Admin Trigger: Injects instant abnormal test reading via MQTT"""
+    if not is_admin_authenticated():
+        return jsonify({"error": "Admin authentication required"}), 403
+
     data = request.json or {}
     anomaly_type = data.get("type", "tachycardia")
     patient_id = data.get("patient_id", config.DEFAULT_PATIENT_ID)
@@ -200,6 +272,9 @@ def api_trigger_anomaly():
 @app.route("/api/clear-db", methods=["POST"])
 def api_clear_db():
     """Admin action: Reset database records"""
+    if not is_admin_authenticated():
+        return jsonify({"error": "Admin authentication required"}), 403
+
     try:
         conn = get_db_connection()
         conn.execute("DELETE FROM patient_data")
@@ -214,6 +289,9 @@ def api_clear_db():
 def api_thresholds():
     """View / Update System Safety Thresholds"""
     if request.method == "POST":
+        if not is_admin_authenticated():
+            return jsonify({"error": "Admin authentication required"}), 403
+
         new_thr = request.json or {}
         if "hr_high" in new_thr: config.THRESHOLDS["heart_rate"]["high"] = float(new_thr["hr_high"])
         if "hr_low" in new_thr:  config.THRESHOLDS["heart_rate"]["low"] = float(new_thr["hr_low"])
