@@ -1,11 +1,23 @@
 """
 Quantum HealthGuard — Classical ML Trainer
 Trains Logistic Regression, Random Forest, SVM on collected data
-Run AFTER collecting at least 50+ readings via the simulator
+Run AFTER collecting at least 50+ readings via the simulator or dataset loader
 """
 
-import sqlite3
+import sys
 import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Fix Windows console encoding for Python 3.13+
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
+
+import sqlite3
 import pickle
 import numpy as np
 import pandas as pd
@@ -16,8 +28,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-DB_PATH    = os.path.join(os.path.dirname(__file__), "..", "database", "healthguard.db")
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "rf_model.pkl")
+import config
+
+DB_PATH    = config.DB_PATH
+MODEL_PATH = config.MODEL_PATH
 
 # ─── Load Data ────────────────────────────────────────────────────────────────
 print("[ML] Loading data from database...")
@@ -33,8 +47,8 @@ print(f"[ML] Loaded {len(df)} records.")
 print(df["risk_level"].value_counts())
 
 if len(df) < 20:
-    print("[ML] ⚠️  Not enough data. Run simulator for at least 5 minutes first.")
-    exit()
+    print("[ML] WARNING: Not enough data. Seed database first.")
+    sys.exit()
 
 # ─── Prepare Features ─────────────────────────────────────────────────────────
 le      = LabelEncoder()
@@ -61,12 +75,12 @@ for name, model in models.items():
     preds    = model.predict(X_test)
     acc      = accuracy_score(y_test, preds)
     results[name] = acc
-    print(f"\n─── {name} (Acc: {acc:.2%}) ───")
+    print(f"\n--- {name} (Accuracy: {acc:.2%}) ---")
     print(classification_report(y_test, preds, target_names=le.classes_, zero_division=0))
 
 # ─── Summary Table ────────────────────────────────────────────────────────────
 print("\n" + "=" * 55)
-print("COMPARISON TABLE")
+print("CLASSICAL ML COMPARISON TABLE")
 print(f"{'Model':<25} {'Accuracy':>10}")
 print("-" * 36)
 for name, acc in sorted(results.items(), key=lambda x: -x[1]):
