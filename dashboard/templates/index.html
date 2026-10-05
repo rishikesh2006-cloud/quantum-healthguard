@@ -76,9 +76,8 @@
       padding: 1.25rem 1.5rem;
       border-radius: 12px;
       margin-bottom: 1.5rem;
-      border-left: 4px solid #38bdf8;
       border: 1px solid #334155;
-      border-left-width: 4px;
+      border-left: 4px solid #38bdf8;
     }
     .patient-info { display: flex; gap: 2.5rem; align-items: center; flex-wrap: wrap; }
     .info-tag { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
@@ -145,13 +144,14 @@
     }
     .card-unit { font-size: 0.8rem; color: #64748b; }
 
-    /* Fixed Aspect Ratio Chart Box for Laptops */
+    /* Strictly Height-Constrained Chart Box to Prevent Downward Expanding */
     .chart-box {
       background: #1e293b;
       border: 1px solid #334155;
       border-radius: 14px;
       padding: 1.25rem 1.5rem;
       margin-bottom: 1.5rem;
+      overflow: hidden;
     }
     .chart-title {
       display: flex;
@@ -164,8 +164,16 @@
     }
     .chart-wrapper {
       position: relative;
-      height: 320px;
+      height: 300px;
+      max-height: 300px;
       width: 100%;
+      overflow: hidden;
+    }
+    #vitalsChart {
+      max-height: 300px !important;
+      height: 300px !important;
+      width: 100% !important;
+      display: block;
     }
 
     /* Modal for Mobile QR Connect */
@@ -305,7 +313,7 @@
     <div class="chart-box">
       <div class="chart-title">
         <span><i class="fa-solid fa-chart-line"></i> Real-Time Physiological Time-Series</span>
-        <span style="font-size: 0.8rem; color: #64748b;">Chart.js | Polling 3s</span>
+        <span style="font-size: 0.8rem; color: #64748b;">Chart.js | Fixed Height</span>
       </div>
       <div class="chart-wrapper">
         <canvas id="vitalsChart"></canvas>
