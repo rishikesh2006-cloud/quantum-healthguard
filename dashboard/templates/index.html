@@ -3,50 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0f172a">
-  <title>Quantum HealthGuard — Patient Health Portal</title>
+  <meta name="theme-color" content="#0a0f1d">
+  <title>Quantum HealthGuard — Clinical Telemetry & AI Gateway</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
+    :root {
+      --bg-dark: #070b14;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --accent-blue: #0284c7;
+      --accent-cyan: #38bdf8;
+      --accent-purple: #a855f7;
+      --color-normal: #10b981;
+      --color-moderate: #f59e0b;
+      --color-critical: #ef4444;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
-      padding: 1.5rem;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      padding: 1.25rem;
       min-height: 100vh;
     }
 
-    /* Centered Dashboard Layout Container for Laptops & Monitors */
+    /* Main Container for Laptop/Desktop Alignment */
     .app-container {
-      max-width: 1280px;
+      max-width: 1380px;
       margin: 0 auto;
     }
 
+    /* Navigation Header */
     nav {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: #1e293b;
-      padding: 1rem 1.5rem;
-      border-radius: 12px;
-      margin-bottom: 1.5rem;
-      border: 1px solid #334155;
+      background: var(--card-bg);
+      padding: 0.9rem 1.5rem;
+      border-radius: 14px;
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      font-size: 1.3rem;
+      gap: 0.8rem;
+      font-size: 1.35rem;
       font-weight: 700;
-      color: #38bdf8;
+      color: var(--accent-cyan);
+      letter-spacing: 0.5px;
     }
-    .brand i { color: #ef4444; font-size: 1.5rem; }
-    .nav-links {
+    .pulse-icon {
+      color: var(--color-critical);
+      font-size: 1.5rem;
+      animation: heartbeat 1.5s infinite;
+    }
+    @keyframes heartbeat {
+      0%, 100% { transform: scale(1); }
+      15% { transform: scale(1.25); }
+      30% { transform: scale(1); }
+      45% { transform: scale(1.15); }
+    }
+    .system-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: rgba(16, 185, 129, 0.1);
+      padding: 0.35rem 0.85rem;
+      border-radius: 20px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--color-normal);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--color-normal);
+    }
+
+    .nav-actions {
       display: flex;
       gap: 0.75rem;
       align-items: center;
     }
-    .nav-btn {
+    .btn {
       padding: 0.55rem 1.1rem;
       border-radius: 8px;
       text-decoration: none;
@@ -56,159 +102,215 @@
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 0.45rem;
+      gap: 0.5rem;
       border: none;
+      outline: none;
     }
-    .btn-client { background: #0284c7; color: white; }
-    .btn-admin  { background: #1e293b; color: #facc15; border: 1px solid #eab308; }
-    .btn-admin:hover { background: #eab308; color: #0f172a; }
-    .btn-export { background: #334155; color: #38bdf8; border: 1px solid #0284c7; }
-    .btn-export:hover { background: #0284c7; color: white; }
-    .btn-qr     { background: #334155; color: #a855f7; border: 1px solid #a855f7; }
-    .btn-qr:hover { background: #a855f7; color: white; }
-    .btn-audio  { background: #334155; color: #cbd5e1; border: 1px solid #475569; }
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-outline { background: #1f2937; color: var(--accent-cyan); border: 1px solid #374151; }
+    .btn-outline:hover { background: #374151; color: white; }
+    .btn-warning { background: #1f2937; color: var(--color-moderate); border: 1px solid rgba(245, 158, 11, 0.4); }
+    .btn-warning:hover { background: var(--color-moderate); color: #000; }
+    .btn-purple  { background: #1f2937; color: var(--accent-purple); border: 1px solid rgba(168, 85, 247, 0.4); }
 
-    .patient-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #1e293b;
+    /* Patient Clinical Profile Banner */
+    .patient-banner {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.25rem;
+      background: var(--card-bg);
       padding: 1.25rem 1.5rem;
-      border-radius: 12px;
-      margin-bottom: 1.5rem;
-      border: 1px solid #334155;
-      border-left: 4px solid #38bdf8;
+      border-radius: 14px;
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--card-border);
+      border-left: 4px solid var(--accent-cyan);
     }
-    .patient-info { display: flex; gap: 2.5rem; align-items: center; flex-wrap: wrap; }
-    .info-tag { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
-    .info-val { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; margin-top: 0.2rem; }
+    @media (max-width: 900px) { .patient-banner { grid-template-columns: 1fr; } }
 
-    .status-badge {
-      padding: 0.5rem 1.4rem;
-      border-radius: 20px;
-      font-weight: 700;
-      font-size: 0.95rem;
+    .patient-details {
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .meta-group { display: flex; flex-direction: column; }
+    .meta-tag { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+    .meta-val { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-top: 0.2rem; }
+
+    .risk-panel {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .risk-badge {
+      padding: 0.6rem 1.6rem;
+      border-radius: 30px;
+      font-weight: 800;
+      font-size: 1rem;
       letter-spacing: 1px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
-    .badge-NORMAL    { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }
-    .badge-MODERATE  { background: rgba(234, 179, 8, 0.2);  color: #facc15; border: 1px solid #eab308; }
-    .badge-HIGH_RISK { background: rgba(239, 68, 68, 0.2);   color: #f87171; border: 1px solid #ef4444; animation: pulse 1s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .badge-NORMAL    { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid #10b981; }
+    .badge-MODERATE  { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #f59e0b; }
+    .badge-HIGH_RISK { background: rgba(239, 68, 68, 0.2);   color: #f87171; border: 1px solid #ef4444; animation: critical-pulse 1s infinite; }
+    @keyframes critical-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.85; transform: scale(1.02); } }
 
-    /* Laptop Grid: Exactly 4 Columns on Laptops & Desktops */
-    .grid-cards {
+    /* Vitals Grid Cards */
+    .grid-vitals {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 1.25rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.25rem;
     }
-    @media (max-width: 1024px) {
-      .grid-cards { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (max-width: 600px) {
-      .grid-cards { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 1024px) { .grid-vitals { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px)  { .grid-vitals { grid-template-columns: 1fr; } }
 
-    .card {
-      background: #1e293b;
-      border: 1px solid #334155;
+    .vital-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
       border-radius: 14px;
       padding: 1.25rem 1.5rem;
       position: relative;
       overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
     }
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; height: 4px;
-    }
-    .card-hr::before   { background: #ef4444; }
-    .card-spo2::before { background: #38bdf8; }
-    .card-temp::before { background: #f59e0b; }
-    .card-js::before   { background: #a855f7; }
+    .vital-card:hover { transform: translateY(-3px); border-color: #374151; }
+    .vital-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+    .card-hr::before   { background: var(--color-critical); }
+    .card-spo2::before { background: var(--accent-cyan); }
+    .card-temp::before { background: var(--color-moderate); }
+    .card-js::before   { background: var(--accent-purple); }
 
-    .card-header {
+    .vital-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      color: #94a3b8;
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-    .card-value {
-      font-size: 2.6rem;
+      color: var(--text-muted);
+      font-size: 0.8rem;
       font-weight: 700;
-      margin: 0.6rem 0 0.2rem 0;
-      color: #f8fafc;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    .card-unit { font-size: 0.8rem; color: #64748b; }
+    .vital-value {
+      font-size: 2.75rem;
+      font-weight: 800;
+      margin: 0.5rem 0 0.2rem 0;
+      color: var(--text-main);
+      font-family: 'Consolas', 'Courier New', monospace;
+    }
+    .vital-subtext {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: #6b7280;
+      margin-top: 0.4rem;
+    }
 
-    /* Strictly Height-Constrained Chart Box to Prevent Downward Expanding */
-    .chart-box {
-      background: #1e293b;
-      border: 1px solid #334155;
+    /* ECG Oscilloscope Visualizer Box */
+    .ecg-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
       border-radius: 14px;
       padding: 1.25rem 1.5rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.25rem;
+      position: relative;
+    }
+    .ecg-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .ecg-canvas-container {
+      background: #050811;
+      border: 1px solid #1f2937;
+      border-radius: 10px;
+      height: 120px;
+      width: 100%;
+      position: relative;
       overflow: hidden;
     }
-    .chart-title {
+    #ecgCanvas {
+      width: 100%;
+      height: 120px;
+      display: block;
+    }
+
+    /* Time Series Chart Section */
+    .chart-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .chart-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 1rem;
-      font-size: 1.05rem;
-      font-weight: 600;
-      color: #cbd5e1;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-main);
     }
     .chart-wrapper {
       position: relative;
-      height: 300px;
-      max-height: 300px;
+      height: 290px;
+      max-height: 290px;
       width: 100%;
       overflow: hidden;
     }
     #vitalsChart {
-      max-height: 300px !important;
-      height: 300px !important;
+      max-height: 290px !important;
+      height: 290px !important;
       width: 100% !important;
       display: block;
     }
 
-    /* Modal for Mobile QR Connect */
+    /* Modal Windows */
     .modal-overlay {
       display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(4px);
       z-index: 9999;
       justify-content: center;
       align-items: center;
       padding: 1rem;
     }
     .modal-content {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
       padding: 2rem;
-      max-width: 420px;
+      max-width: 440px;
       width: 100%;
       text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
     }
-    .qr-placeholder {
+    .qr-frame {
       background: white;
       padding: 1rem;
-      border-radius: 12px;
-      margin: 1rem auto;
+      border-radius: 14px;
+      margin: 1.25rem auto;
       display: inline-block;
     }
 
     footer {
       text-align: center;
-      font-size: 0.85rem;
-      color: #64748b;
+      font-size: 0.8rem;
+      color: #6b7280;
       margin-top: 1.5rem;
+      padding-bottom: 1rem;
     }
   </style>
 
@@ -223,126 +325,161 @@
 <body>
 
   <div class="app-container">
-    <!-- Navigation Header -->
+    <!-- Top Navigation -->
     <nav>
       <div class="brand">
-        <i class="fa-solid fa-heart-pulse"></i>
+        <i class="fa-solid fa-heart-pulse pulse-icon"></i>
         <span>Quantum HealthGuard</span>
       </div>
-      <div class="nav-links">
-        <button class="nav-btn btn-qr" onclick="toggleMobileModal()">
-          <i class="fa-solid fa-mobile-screen"></i> Mobile Connect
+
+      <div class="system-status">
+        <div class="status-dot"></div>
+        <span>Edge Telemetry System: <b>ACTIVE</b></span>
+      </div>
+
+      <div class="nav-actions">
+        <button class="btn btn-purple" onclick="toggleMobileModal()">
+          <i class="fa-solid fa-mobile-screen-button"></i> Mobile QR
         </button>
 
-        <button class="nav-btn btn-audio" id="audio-toggle" onclick="toggleAudioAlert()">
+        <button class="btn btn-outline" id="audio-toggle" onclick="toggleAudioAlert()">
           <i class="fa-solid fa-volume-xmark" id="audio-icon"></i> <span id="audio-label">Alarm Muted</span>
         </button>
-        
-        <a href="/api/export-report" class="nav-btn btn-export" download>
+
+        <a href="/api/export-report" class="btn btn-primary" download>
           <i class="fa-solid fa-file-csv"></i> Export CSV
         </a>
 
-        <a href="/admin" class="nav-btn btn-admin">
-          <i class="fa-solid fa-lock"></i> Admin Access
+        <a href="/admin" class="btn btn-warning">
+          <i class="fa-solid fa-shield-halved"></i> Admin Access
         </a>
       </div>
     </nav>
 
-    <!-- Patient Vitals Bar -->
-    <div class="patient-bar">
-      <div class="patient-info">
-        <div>
-          <div class="info-tag">Patient ID</div>
-          <div class="info-val">P001 (Simulated Baseline)</div>
+    <!-- Patient Profile & Status Banner -->
+    <div class="patient-banner">
+      <div class="patient-details">
+        <div class="meta-group">
+          <span class="meta-tag">Patient Profile</span>
+          <span class="meta-val"><i class="fa-solid fa-user-check" style="color: var(--accent-cyan);"></i> P001 — John Doe (Simulated)</span>
         </div>
-        <div>
-          <div class="info-tag">Monitoring Mode</div>
-          <div class="info-val" style="color: #38bdf8;"><i class="fa-solid fa-wifi"></i> Edge Telemetry Stream</div>
+        <div class="meta-group">
+          <span class="meta-tag">Blood Pressure / Baseline</span>
+          <span class="meta-val" style="color: #93c5fd;">120 / 80 mmHg</span>
         </div>
-        <div>
-          <div class="info-tag">Last Data Update</div>
-          <div class="info-val" id="last-update">Waiting for stream...</div>
+        <div class="meta-group">
+          <span class="meta-tag">Gateway Mode</span>
+          <span class="meta-val" style="color: var(--color-normal);"><i class="fa-solid fa-microchip"></i> Pi 5 Edge MQTT</span>
+        </div>
+        <div class="meta-group">
+          <span class="meta-tag">Last Sync Time</span>
+          <span class="meta-val" id="last-update">Syncing...</span>
         </div>
       </div>
-      <div>
-        <span class="status-badge badge-NORMAL" id="status-badge">STATUS: NORMAL</span>
+
+      <div class="risk-panel">
+        <span class="risk-badge badge-NORMAL" id="status-badge">
+          <i class="fa-solid fa-circle-check"></i> NORMAL
+        </span>
       </div>
     </div>
 
-    <!-- Real-Time Vital Cards (4 Columns on Laptop) -->
-    <div class="grid-cards">
-      <div class="card card-hr">
-        <div class="card-header">
+    <!-- Vital Cards Grid -->
+    <div class="grid-vitals">
+      <div class="vital-card card-hr">
+        <div class="vital-header">
           <span>Heart Rate</span>
-          <i class="fa-solid fa-heartbeat" style="color: #ef4444; font-size: 1.2rem;"></i>
+          <i class="fa-solid fa-heart-pulse" style="color: var(--color-critical); font-size: 1.25rem;"></i>
         </div>
-        <div class="card-value" id="val-hr">--</div>
-        <div class="card-unit">Beats Per Minute (BPM)</div>
+        <div class="vital-value" id="val-hr">--</div>
+        <div class="vital-subtext">
+          <span>Unit: BPM</span>
+          <span id="sub-hr-range">Normal: 60-100</span>
+        </div>
       </div>
 
-      <div class="card card-spo2">
-        <div class="card-header">
+      <div class="vital-card card-spo2">
+        <div class="vital-header">
           <span>Blood Oxygen (SpO₂)</span>
-          <i class="fa-solid fa-lungs" style="color: #38bdf8; font-size: 1.2rem;"></i>
+          <i class="fa-solid fa-lungs" style="color: var(--accent-cyan); font-size: 1.25rem;"></i>
         </div>
-        <div class="card-value" id="val-spo2">--</div>
-        <div class="card-unit">Oxygen Saturation (%)</div>
+        <div class="vital-value" id="val-spo2">--</div>
+        <div class="vital-subtext">
+          <span>Unit: % Saturation</span>
+          <span>Normal: 95-100%</span>
+        </div>
       </div>
 
-      <div class="card card-temp">
-        <div class="card-header">
+      <div class="vital-card card-temp">
+        <div class="vital-header">
           <span>Body Temperature</span>
-          <i class="fa-solid fa-temperature-high" style="color: #f59e0b; font-size: 1.2rem;"></i>
+          <i class="fa-solid fa-temperature-three-quarters" style="color: var(--color-moderate); font-size: 1.25rem;"></i>
         </div>
-        <div class="card-value" id="val-temp">--</div>
-        <div class="card-unit">Celsius (°C)</div>
+        <div class="vital-value" id="val-temp">--</div>
+        <div class="vital-subtext">
+          <span>Unit: Celsius (°C)</span>
+          <span>Normal: 36.5-37.5°C</span>
+        </div>
       </div>
 
-      <!-- Client-Side JS Processed Analytics Card (Offloads Python Server) -->
-      <div class="card card-js">
-        <div class="card-header">
-          <span>JS Trend (Avg HR)</span>
-          <i class="fa-solid fa-microchip" style="color: #a855f7; font-size: 1.2rem;"></i>
+      <div class="vital-card card-js">
+        <div class="vital-header">
+          <span>Client JS Trend</span>
+          <i class="fa-solid fa-microchip" style="color: var(--accent-purple); font-size: 1.25rem;"></i>
         </div>
-        <div class="card-value" id="val-js-avg">--</div>
-        <div class="card-unit" id="val-js-range">Client JS Computed</div>
+        <div class="vital-value" id="val-js-avg">--</div>
+        <div class="vital-subtext">
+          <span>Avg HR Compute</span>
+          <span id="val-js-range">Offloading CPU</span>
+        </div>
       </div>
     </div>
 
-    <!-- Real-Time Chart -->
-    <div class="chart-box">
-      <div class="chart-title">
-        <span><i class="fa-solid fa-chart-line"></i> Real-Time Physiological Time-Series</span>
-        <span style="font-size: 0.8rem; color: #64748b;">Chart.js | Fixed Height</span>
+    <!-- Real-Time ECG Lead I Oscilloscope Monitor -->
+    <div class="ecg-box">
+      <div class="ecg-header">
+        <span><i class="fa-solid fa-wave-square" style="color: var(--color-normal);"></i> AD8232 ECG Oscilloscope Lead I Monitor</span>
+        <span style="font-size: 0.78rem; color: var(--text-muted);"><i class="fa-solid fa-circle" style="color: var(--color-normal); font-size: 0.6rem;"></i> 100 Hz Live Sampling</span>
+      </div>
+      <div class="ecg-canvas-container">
+        <canvas id="ecgCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Time Series Analytics Chart -->
+    <div class="chart-section">
+      <div class="chart-header">
+        <span><i class="fa-solid fa-chart-line" style="color: var(--accent-cyan);"></i> Physiological Vitals Time-Series Analysis</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Real-Time Chart.js Integration</span>
       </div>
       <div class="chart-wrapper">
         <canvas id="vitalsChart"></canvas>
       </div>
     </div>
 
-    <!-- Mobile Connection Modal -->
+    <!-- QR Code Mobile Connection Modal -->
     <div id="mobile-modal" class="modal-overlay" onclick="toggleMobileModal()">
       <div class="modal-content" onclick="event.stopPropagation()">
-        <h3 style="color: #38bdf8; margin-bottom: 0.5rem;"><i class="fa-solid fa-mobile-screen-button"></i> Connect Phone or Tablet</h3>
-        <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1rem;">Scan with Phone Camera or open Wi-Fi URL:</p>
+        <h3 style="color: var(--accent-cyan); margin-bottom: 0.5rem;"><i class="fa-solid fa-mobile-screen"></i> Mobile Device Sync</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Scan QR code with your Phone Camera or type the Wi-Fi URL:</p>
         
-        <div class="qr-placeholder">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={{ lan_url }}" alt="Mobile QR Code" style="width: 180px; height: 180px; display: block;">
+        <div class="qr-frame">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={{ lan_url }}" alt="Mobile Connection QR" style="width: 180px; height: 180px; display: block;">
         </div>
 
-        <div style="background: #0f172a; padding: 0.85rem; border-radius: 8px; border: 1px solid #334155; margin-top: 1rem;">
-          <div style="font-size: 0.75rem; color: #64748b;">WI-FI URL FOR PHONE:</div>
-          <div style="font-size: 1.1rem; font-weight: 700; color: #38bdf8; word-break: break-all;">{{ lan_url }}</div>
+        <div style="background: #050811; padding: 0.85rem; border-radius: 10px; border: 1px solid #1f2937; margin-top: 1rem;">
+          <div style="font-size: 0.75rem; color: var(--text-muted);">WI-FI NETWORK URL:</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent-cyan); word-break: break-all;">{{ lan_url }}</div>
         </div>
 
-        <button onclick="toggleMobileModal()" style="margin-top: 1.25rem; padding: 0.6rem 1.75rem; border-radius: 8px; border: none; background: #0284c7; color: white; font-weight: 600; cursor: pointer;">
-          Close Window
+        <button onclick="toggleMobileModal()" style="margin-top: 1.25rem; padding: 0.6rem 1.75rem; border-radius: 8px; border: none; background: var(--accent-blue); color: white; font-weight: 700; cursor: pointer;">
+          Dismiss Window
         </button>
       </div>
     </div>
 
     <footer>
-      Quantum HealthGuard — Student Research Prototype | Malla Reddy University
+      Quantum HealthGuard — Clinical Biomedical Gateway & AI Predictor | Malla Reddy University Research Prototype
     </footer>
   </div>
 
@@ -352,7 +489,7 @@
       m.style.display = (m.style.display === 'flex') ? 'none' : 'flex';
     }
 
-    // ── Client-Side Web Audio Synthesizer (No external audio files) ──────
+    // ── Web Audio Emergency Synthesizer ─────────────────────────────────
     let audioEnabled = false;
     let audioCtx = null;
 
@@ -363,11 +500,11 @@
       if (audioEnabled) {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         icon.className = 'fa-solid fa-volume-high';
-        icon.style.color = '#22c55e';
+        icon.style.color = '#10b981';
         label.textContent = 'Alarm Active';
       } else {
         icon.className = 'fa-solid fa-volume-xmark';
-        icon.style.color = '#cbd5e1';
+        icon.style.color = '#9ca3af';
         label.textContent = 'Alarm Muted';
       }
     }
@@ -387,6 +524,67 @@
       } catch(e) {}
     }
 
+    // ── ECG Oscilloscope Canvas Rendering ──────────────────────────────
+    const ecgCanvas = document.getElementById('ecgCanvas');
+    const ecgCtx = ecgCanvas.getContext('2d');
+    let ecgBuffer = [];
+    let ecgX = 0;
+
+    function initEcgCanvas() {
+      ecgCanvas.width = ecgCanvas.parentElement.clientWidth;
+      ecgCanvas.height = 120;
+    }
+    window.addEventListener('resize', initEcgCanvas);
+    initEcgCanvas();
+
+    function drawEcgFrame() {
+      if (!ecgCtx) return;
+      const w = ecgCanvas.width;
+      const h = ecgCanvas.height;
+      const midY = h / 2;
+
+      // Draw faint grid lines
+      ecgCtx.fillStyle = '#050811';
+      ecgCtx.fillRect(0, 0, w, h);
+
+      ecgCtx.strokeStyle = 'rgba(16, 185, 129, 0.1)';
+      ecgCtx.lineWidth = 1;
+      for (let x = 0; x < w; x += 20) {
+        ecgCtx.beginPath(); ecgCtx.moveTo(x, 0); ecgCtx.lineTo(x, h); ecgCtx.stroke();
+      }
+      for (let y = 0; y < h; y += 20) {
+        ecgCtx.beginPath(); ecgCtx.moveTo(0, y); ecgCtx.lineTo(w, y); ecgCtx.stroke();
+      }
+
+      // Draw synthetic / live ECG trace
+      ecgCtx.strokeStyle = '#10b981';
+      ecgCtx.lineWidth = 2;
+      ecgCtx.shadowBlur = 6;
+      ecgCtx.shadowColor = '#10b981';
+
+      ecgCtx.beginPath();
+      for (let i = 0; i < w; i++) {
+        const t = (ecgX + i) * 0.04;
+        const phase = t % 1.0;
+        let pqrst = 0;
+
+        // PQRTS Wave Simulation
+        if (phase > 0.15 && phase < 0.22) pqrst = 8 * Math.sin((phase - 0.15) * 40); // P wave
+        else if (phase > 0.28 && phase < 0.30) pqrst = -12; // Q wave
+        else if (phase > 0.30 && phase < 0.36) pqrst = 45 * Math.sin((phase - 0.30) * 50); // R wave
+        else if (phase > 0.36 && phase < 0.39) pqrst = -18; // S wave
+        else if (phase > 0.50 && phase < 0.65) pqrst = 12 * Math.sin((phase - 0.50) * 20); // T wave
+
+        const y = midY - pqrst;
+        if (i === 0) ecgCtx.moveTo(i, y);
+        else ecgCtx.lineTo(i, y);
+      }
+      ecgCtx.stroke();
+      ecgX += 2;
+      requestAnimationFrame(drawEcgFrame);
+    }
+    requestAnimationFrame(drawEcgFrame);
+
     // ── Chart.js Initialization ─────────────────────────────────────────
     let chart = null;
     if (typeof Chart !== 'undefined') {
@@ -396,25 +594,25 @@
         data: {
           labels: [],
           datasets: [
-            { label: 'Heart Rate (BPM)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', tension: 0.3, fill: true, pointRadius: 3 },
-            { label: 'SpO₂ (%)',         data: [], borderColor: '#38bdf8', backgroundColor: 'transparent', tension: 0.3, fill: false, pointRadius: 3 },
-            { label: 'Temperature (°C)', data: [], borderColor: '#f59e0b', backgroundColor: 'transparent', tension: 0.3, fill: false, pointRadius: 3 }
+            { label: 'Heart Rate (BPM)', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', tension: 0.35, fill: true, pointRadius: 3 },
+            { label: 'SpO₂ (%)',         data: [], borderColor: '#38bdf8', backgroundColor: 'transparent', tension: 0.35, fill: false, pointRadius: 3 },
+            { label: 'Temperature (°C)', data: [], borderColor: '#f59e0b', backgroundColor: 'transparent', tension: 0.35, fill: false, pointRadius: 3 }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           animation: false,
-          plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 12 } } } },
+          plugins: { legend: { labels: { color: '#9ca3af', font: { size: 12 } } } },
           scales: {
-            x: { ticks: { color: '#64748b', maxTicksLimit: 12 }, grid: { color: '#334155' } },
-            y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+            x: { ticks: { color: '#6b7280', maxTicksLimit: 12 }, grid: { color: '#1f2937' } },
+            y: { ticks: { color: '#6b7280' }, grid: { color: '#1f2937' } }
           }
         }
       });
     }
 
-    // ── Client-Side JS Data Processing ──────────────────────────────────
+    // ── Client-Side JS Data Analytics ───────────────────────────────────
     function processClientSideAnalytics(histData) {
       if (!histData || histData.length === 0) return;
       const hrs = histData.map(d => d.heart_rate).filter(v => typeof v === 'number');
@@ -425,7 +623,7 @@
         const max = Math.max(...hrs).toFixed(1);
         
         document.getElementById('val-js-avg').textContent = avg + ' BPM';
-        document.getElementById('val-js-range').textContent = `Min: ${min} | Max: ${max} (JS Compute)`;
+        document.getElementById('val-js-range').textContent = `Min: ${min} | Max: ${max} BPM`;
       }
     }
 
@@ -440,8 +638,13 @@
 
           const badge = document.getElementById('status-badge');
           const risk = latest.risk_level || 'NORMAL';
-          badge.textContent = 'STATUS: ' + risk;
-          badge.className = 'status-badge badge-' + risk;
+          
+          let iconHTML = '<i class="fa-solid fa-circle-check"></i> ';
+          if (risk === 'HIGH_RISK') iconHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ';
+          else if (risk === 'MODERATE') iconHTML = '<i class="fa-solid fa-circle-exclamation"></i> ';
+
+          badge.innerHTML = iconHTML + risk;
+          badge.className = 'risk-badge badge-' + risk;
 
           if (risk === 'HIGH_RISK') {
             triggerEmergencyBeep();
