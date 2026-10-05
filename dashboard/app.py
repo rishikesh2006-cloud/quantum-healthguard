@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import socket
+from typing import Optional
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, Response
 import sqlite3
 import json
@@ -27,7 +28,7 @@ app.secret_key = config.SECRET_KEY
 
 # ─── Helper Functions ──────────────────────────────────────────────────────────
 
-def get_lan_ip():
+def get_lan_ip() -> str:
     """Detects local LAN/Wi-Fi IP address for multi-device network connections."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -43,12 +44,9 @@ def is_admin_authenticated() -> bool:
     return session.get("is_admin") is True
 
 
-def publish_mqtt_msg(topic, payload):
+def publish_mqtt_msg(topic: str, payload: dict) -> bool:
     try:
-        try:
-            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        except AttributeError:
-            client = mqtt.Client()
+        client = mqtt.Client()
         client.connect(config.MQTT_BROKER, config.MQTT_PORT, 10)
         client.publish(topic, json.dumps(payload))
         client.disconnect()
@@ -58,13 +56,13 @@ def publish_mqtt_msg(topic, payload):
         return False
 
 
-def get_db_connection():
+def get_db_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(config.DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def get_readings(limit: int = 50, patient_id: str = None) -> list[dict]:
+def get_readings(limit: int = 50, patient_id: Optional[str] = None) -> list[dict]:
     if not config.DB_PATH.exists():
         return []
     conn = get_db_connection()
@@ -117,7 +115,7 @@ def admin_dashboard():
 def api_admin_verify():
     """Verifies the Security Question Answer and grants Admin session access."""
     data = request.json or {}
-    user_answer = data.get("answer", "").strip()
+    user_answer = str(data.get("answer", "")).strip()
 
     if user_answer.lower() == config.ADMIN_SECURITY_ANSWER.lower():
         session["is_admin"] = True
