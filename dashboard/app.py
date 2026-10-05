@@ -1,15 +1,14 @@
 """
 Quantum HealthGuard — Flask Web Application Server
-Serves both Client (Patient/Caregiver) and Admin Control Center interfaces,
-exposing REST APIs for telemetry, analytics, database inspection, and simulation control.
-
-Features Admin Security Question Authentication and Session Management.
+Serves both Client (Patient/Caregiver) and Admin Control Center interfaces.
+Optimized for multi-device access (Mobiles, Tablets, Laptops) across Wi-Fi/LAN networks.
 """
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import socket
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, Response
 import sqlite3
 import json
@@ -27,6 +26,18 @@ app.secret_key = config.SECRET_KEY
 
 
 # ─── Helper Functions ──────────────────────────────────────────────────────────
+
+def get_lan_ip():
+    """Detects local LAN/Wi-Fi IP address for multi-device network connections."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
 
 def is_admin_authenticated() -> bool:
     return session.get("is_admin") is True
@@ -80,10 +91,12 @@ def get_readings(limit: int = 50, patient_id: str = None) -> list[dict]:
 
 @app.route("/")
 def client_dashboard():
-    """Client / Patient & Caregiver Monitoring View — Accessible to All Devices"""
+    """Client / Patient & Caregiver Monitoring View — Mobile & Multi-Device Optimized"""
     readings = get_readings(1)
     latest = readings[0] if readings else {}
-    return render_template("index.html", latest=latest, is_admin=is_admin_authenticated())
+    lan_ip = get_lan_ip()
+    lan_url = f"http://{lan_ip}:{config.DASHBOARD_PORT}"
+    return render_template("index.html", latest=latest, is_admin=is_admin_authenticated(), lan_url=lan_url, lan_ip=lan_ip)
 
 
 # ─── ADMIN ROUTES & SECURITY QUESTION AUTH ───────────────────────────────────
@@ -96,7 +109,8 @@ def admin_dashboard():
     """
     if not is_admin_authenticated():
         return render_template("admin_auth.html", question=config.ADMIN_SECURITY_QUESTION)
-    return render_template("admin.html")
+    lan_ip = get_lan_ip()
+    return render_template("admin.html", lan_ip=lan_ip)
 
 
 @app.route("/api/admin/verify", methods=["POST"])
@@ -120,6 +134,19 @@ def api_admin_logout():
 
 
 # ─── REST API ENDPOINTS ────────────────────────────────────────────────────────
+
+@app.route("/api/info")
+def api_info():
+    """Returns system device network URLs for mobile discovery."""
+    lan_ip = get_lan_ip()
+    return jsonify({
+        "device": "Quantum HealthGuard Gateway",
+        "local_url": f"http://localhost:{config.DASHBOARD_PORT}",
+        "mobile_lan_url": f"http://{lan_ip}:{config.DASHBOARD_PORT}",
+        "lan_ip": lan_ip,
+        "port": config.DASHBOARD_PORT
+    })
+
 
 @app.route("/api/latest")
 def api_latest():
@@ -303,6 +330,10 @@ def api_thresholds():
 
 
 if __name__ == "__main__":
-    print(f"[SERVER] Client View : http://localhost:{config.DASHBOARD_PORT}")
-    print(f"[SERVER] Admin View  : http://localhost:{config.DASHBOARD_PORT}/admin")
+    lan_ip = get_lan_ip()
+    print("=" * 60)
+    print("  QUANTUM HEALTHGUARD — MULTI-DEVICE WEB SERVER")
+    print(f"  Local PC Access  : http://localhost:{config.DASHBOARD_PORT}")
+    print(f"  Mobile/Wi-Fi URL : http://{lan_ip}:{config.DASHBOARD_PORT}")
+    print("=" * 60)
     app.run(host=config.DASHBOARD_HOST, port=config.DASHBOARD_PORT, debug=False)

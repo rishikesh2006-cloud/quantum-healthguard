@@ -1,7 +1,7 @@
 """
-Quantum HealthGuard — Master System Entrypoint
+Quantum HealthGuard — Master System Entrypoint & Multi-Device Supervisor
 Starts all 5 microservices (MQTT Broker, Data Receiver, Sensor Simulator, AI Predictor, Flask Web Server)
-concurrently within a single process supervisor.
+concurrently within a single process supervisor and displays local & Wi-Fi LAN access links.
 
 Usage in VS Code / Terminal:
     python main.py
@@ -11,20 +11,34 @@ import sys
 import os
 import time
 import subprocess
-import signal
+import socket
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 PYTHON_BIN = sys.executable
+
+def get_lan_ip():
+    """Detects local LAN/Wi-Fi IP address for multi-device network connections."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 def start_service(name, script_path):
     print(f"[{name}] Starting {os.path.basename(script_path)}...")
     return subprocess.Popen([PYTHON_BIN, script_path], cwd=ROOT_DIR)
 
 def main():
-    print("=" * 60)
-    print("  QUANTUM HEALTHGUARD — MASTER PROCESS SUPERVISOR")
+    lan_ip = get_lan_ip()
+    port = 5000
+
+    print("=" * 65)
+    print("  QUANTUM HEALTHGUARD — MULTI-DEVICE MASTER SUPERVISOR")
     print("  Starting all 5 system microservices...")
-    print("=" * 60)
+    print("=" * 65)
     print()
 
     processes = []
@@ -51,15 +65,18 @@ def main():
         time.sleep(2)
 
         print()
-        print("=" * 60)
-        print("  ALL 5 SERVICES OPERATIONAL!")
-        print("  Client View : http://localhost:5000")
-        print("  Admin View  : http://localhost:5000/admin")
+        print("=" * 65)
+        print("  ALL 5 MICROSERVICES OPERATIONAL & MULTI-DEVICE READY!")
+        print("  -------------------------------------------------------------")
+        print(f"  📱 Mobile / Phone / Tablet URL : http://{lan_ip}:{port}")
+        print(f"  💻 Local PC Client View        : http://localhost:{port}")
+        print(f"  🛡️ Admin Control Center       : http://localhost:{port}/admin")
+        print("  -------------------------------------------------------------")
         print("  Press Ctrl+C to stop all services cleanly.")
-        print("=" * 60)
+        print("=" * 65)
         print()
 
-        # 5. Run Dashboard Server in Main Thread
+        # 5. Run Dashboard Server
         p_dash = start_service("DASHBOARD", os.path.join(ROOT_DIR, "dashboard", "app.py"))
         processes.append(("Dashboard", p_dash))
 
