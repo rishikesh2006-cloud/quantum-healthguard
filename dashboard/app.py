@@ -180,8 +180,14 @@ def api_info():
 @app.route("/api/latest")
 def api_latest():
     patient_id = request.args.get("patient_id")
-    readings = get_readings(1, patient_id=patient_id)
-    return jsonify(readings[0] if readings else {})
+    readings = get_readings(5, patient_id=patient_id)
+    if not readings:
+        return jsonify({})
+    # Prefer the newest reading that has completed Stage 3 QSVC + RF analysis
+    for r in reversed(readings):
+        if r.get("decision_source") and r.get("decision_source") != "Stage 2 Edge Pre-Check":
+            return jsonify(r)
+    return jsonify(readings[-1])
 
 
 @app.route("/api/data")

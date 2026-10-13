@@ -41,8 +41,8 @@ def train_quantum_classifier(num_samples: int = 150):
     y = le.fit_transform(df["risk_level"])
     X = df[["heart_rate", "spo2", "temperature"]].values
 
-    # Scale features into [0, 2*pi] range suitable for quantum phase encoding
-    scaler = MinMaxScaler(feature_range=(0, 2 * math.pi))
+    # Scale features into [0, 1.2] rad to prevent 2*pi Bloch sphere phase aliasing in ZZFeatureMap
+    scaler = MinMaxScaler(feature_range=(0, 1.2))
     X_scaled = scaler.fit_transform(X)
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -50,8 +50,8 @@ def train_quantum_classifier(num_samples: int = 150):
     )
 
     # 3. Construct Quantum Circuit & Feature Map (3 qubits for HR, SpO2, Temp)
-    print("\n[QML] Constructing Qiskit ZZFeatureMap (3 qubits, 2 repetitions)...")
-    feature_map = ZZFeatureMap(feature_dimension=3, reps=2, entanglement='linear')
+    print("\n[QML] Constructing Qiskit ZZFeatureMap (3 qubits, 1 repetition, linear entanglement)...")
+    feature_map = ZZFeatureMap(feature_dimension=3, reps=1, entanglement='linear')
 
     # 4. Instantiate and Train QSVC
     print("[QML] Training Qiskit Quantum Support Vector Classifier (QSVC)...")

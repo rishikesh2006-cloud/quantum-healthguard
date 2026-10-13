@@ -13,6 +13,15 @@ import time
 import subprocess
 import socket
 
+# Fix Windows console encoding for Python 3.13+
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 PYTHON_BIN = sys.executable
 
@@ -36,7 +45,7 @@ def main():
     port = 5000
 
     print("=" * 65)
-    print("  QUANTUM HEALTHGUARD — MULTI-DEVICE MASTER SUPERVISOR")
+    print("  QUANTUM HEALTHGUARD -- MULTI-DEVICE MASTER SUPERVISOR")
     print("  Starting all 5 system microservices...")
     print("=" * 65)
     print()
@@ -49,17 +58,17 @@ def main():
         processes.append(("Broker", p_broker))
         time.sleep(2)
 
-        # 2. Start MQTT Data Receiver
+        # 2. Start MQTT Data Receiver (Stage 2 Edge Processor)
         p_recv = start_service("RECEIVER", os.path.join(ROOT_DIR, "communication", "mqtt_receiver.py"))
         processes.append(("Receiver", p_recv))
         time.sleep(2)
 
-        # 3. Start Sensor Simulator
+        # 3. Start Sensor Simulator (Stage 1 ESP32 Node)
         p_sim = start_service("SIMULATOR", os.path.join(ROOT_DIR, "simulator", "sensor_simulator.py"))
         processes.append(("Simulator", p_sim))
         time.sleep(2)
 
-        # 4. Start Real-Time AI Predictor
+        # 4. Start Real-Time AI Predictor (Stage 3 Quantum QSVC + Backup RF)
         p_pred = start_service("PREDICTOR", os.path.join(ROOT_DIR, "ml", "realtime_predict.py"))
         processes.append(("Predictor", p_pred))
         time.sleep(2)
@@ -68,15 +77,15 @@ def main():
         print("=" * 65)
         print("  ALL 5 MICROSERVICES OPERATIONAL & MULTI-DEVICE READY!")
         print("  -------------------------------------------------------------")
-        print(f"  📱 Mobile / Phone / Tablet URL : http://{lan_ip}:{port}")
-        print(f"  💻 Local PC Client View        : http://localhost:{port}")
-        print(f"  🛡️ Admin Control Center       : http://localhost:{port}/admin")
+        print(f"  [MOBILE] Phone / Tablet Wi-Fi URL : http://{lan_ip}:{port}")
+        print(f"  [LAPTOP] Local PC Client View     : http://localhost:{port}")
+        print(f"  [ADMIN]  Admin Control Center     : http://localhost:{port}/admin")
         print("  -------------------------------------------------------------")
         print("  Press Ctrl+C to stop all services cleanly.")
         print("=" * 65)
         print()
 
-        # 5. Run Dashboard Server
+        # 5. Run Dashboard Server (Stage 4 Live Dashboard & Alerts)
         p_dash = start_service("DASHBOARD", os.path.join(ROOT_DIR, "dashboard", "app.py"))
         processes.append(("Dashboard", p_dash))
 
