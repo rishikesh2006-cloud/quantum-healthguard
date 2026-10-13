@@ -46,10 +46,11 @@ MQTT_BROKER = _st.get("MQTT_BROKER", os.getenv("MQTT_BROKER", "localhost"))
 MQTT_PORT   = int(_st.get("MQTT_PORT", os.getenv("MQTT_PORT", 1883)))
 
 MQTT_TOPICS = {
-    "vitals": "healthguard/vitals",
-    "ecg":    "healthguard/ecg",
-    "status": "healthguard/status",
-    "alerts": "healthguard/alerts",
+    "vitals":    "healthguard/vitals",
+    "processed": "healthguard/processed",
+    "ecg":       "healthguard/ecg",
+    "status":    "healthguard/status",
+    "alerts":    "healthguard/alerts",
 }
 
 # ─── Dashboard ────────────────────────────────────────────────────

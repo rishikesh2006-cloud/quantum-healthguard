@@ -62,13 +62,42 @@ def get_db_connection() -> sqlite3.Connection:
     return conn
 
 
+def ensure_db_columns():
+    if not config.DB_PATH.exists():
+        return
+    conn = sqlite3.connect(config.DB_PATH)
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(patient_data)").fetchall()}
+    migrations = [
+        ("sensor_status",   "TEXT DEFAULT 'ONLINE'"),
+        ("edge_status",     "TEXT DEFAULT 'SAFE'"),
+        ("qsvc_pred",       "TEXT DEFAULT 'NORMAL'"),
+        ("rf_pred",         "TEXT DEFAULT 'NORMAL'"),
+        ("decision_source", "TEXT DEFAULT 'Primary: Qiskit QSVC'"),
+        ("alert_msg",       "TEXT DEFAULT ''"),
+    ]
+    for col_name, col_def in migrations:
+        if col_name not in existing_cols:
+            try:
+                conn.execute(f"ALTER TABLE patient_data ADD COLUMN {col_name} {col_def}")
+            except Exception:
+                pass
+    conn.commit()
+    conn.close()
+
+
+ensure_db_columns()
+
+
 def get_readings(limit: int = 50, patient_id: Optional[str] = None) -> list[dict]:
     if not config.DB_PATH.exists():
         return []
+    ensure_db_columns()
     conn = get_db_connection()
     if patient_id:
         rows = conn.execute("""
-            SELECT id, timestamp, patient_id, heart_rate, spo2, temperature, risk_level
+            SELECT id, timestamp, patient_id, heart_rate, spo2, temperature,
+                   risk_level, sensor_status, edge_status, qsvc_pred, rf_pred,
+                   decision_source, alert_msg
             FROM patient_data
             WHERE patient_id = ?
             ORDER BY id DESC
@@ -76,7 +105,9 @@ def get_readings(limit: int = 50, patient_id: Optional[str] = None) -> list[dict
         """, (patient_id, limit)).fetchall()
     else:
         rows = conn.execute("""
-            SELECT id, timestamp, patient_id, heart_rate, spo2, temperature, risk_level
+            SELECT id, timestamp, patient_id, heart_rate, spo2, temperature,
+                   risk_level, sensor_status, edge_status, qsvc_pred, rf_pred,
+                   decision_source, alert_msg
             FROM patient_data
             ORDER BY id DESC
             LIMIT ?

@@ -68,11 +68,12 @@ def simulate_vitals(t):
             temp = random.uniform(thr["temperature"]["high"] + 0.5, 40.5)
 
     return {
-        "patient_id":  config.DEFAULT_PATIENT_ID,
-        "heart_rate":  round(hr, 1),
-        "spo2":        round(min(max(spo2, 80), 100), 1),
-        "temperature": round(temp, 2),
-        "timestamp":   time.time(),
+        "patient_id":    config.DEFAULT_PATIENT_ID,
+        "heart_rate":    round(hr, 1),
+        "spo2":          round(min(max(spo2, 80), 100), 1),
+        "temperature":   round(temp, 2),
+        "sensor_status": "ONLINE (AD8232+MAX30102+DS18B20)",
+        "timestamp":     time.time(),
     }
 
 

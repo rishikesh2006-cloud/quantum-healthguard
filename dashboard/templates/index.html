@@ -435,6 +435,79 @@
       </div>
     </div>
 
+    <!-- 4-Stage Data Pipeline & Quantum/Classical AI Decision Panel -->
+    <div class="grid-vitals" style="margin-bottom: 1.25rem;">
+      <div class="vital-card" style="border-top: 3px solid var(--accent-cyan);">
+        <div class="vital-header">
+          <span>Stage 1: Sensor & Comm Status</span>
+          <i class="fa-solid fa-wifi" style="color: var(--accent-cyan);"></i>
+        </div>
+        <div style="font-size: 1.05rem; font-weight: 700; margin: 0.65rem 0 0.25rem 0; color: var(--color-normal);" id="val-sensor-status">
+          ONLINE (ESP32 Wi-Fi/MQTT)
+        </div>
+        <div class="vital-subtext">
+          <span>AD8232 + MAX30102 + DS18B20</span>
+          <span>Basic Filtered</span>
+        </div>
+      </div>
+
+      <div class="vital-card" style="border-top: 3px solid #14b8a6;">
+        <div class="vital-header">
+          <span>Stage 2: Pi 5 Edge Safety</span>
+          <i class="fa-solid fa-server" style="color: #14b8a6;"></i>
+        </div>
+        <div style="font-size: 1.05rem; font-weight: 700; margin: 0.65rem 0 0.25rem 0; color: var(--text-main);" id="val-edge-status">
+          SAFE (Within Thresholds)
+        </div>
+        <div class="vital-subtext">
+          <span>Noise & Dup Filtered</span>
+          <span>Threshold Check</span>
+        </div>
+      </div>
+
+      <div class="vital-card" style="border-top: 3px solid var(--accent-purple);">
+        <div class="vital-header">
+          <span>Stage 3 Primary: Quantum QSVC</span>
+          <i class="fa-solid fa-atom" style="color: var(--accent-purple);"></i>
+        </div>
+        <div style="font-size: 1.35rem; font-weight: 800; margin: 0.5rem 0 0.2rem 0; color: #c084fc;" id="val-qsvc-pred">
+          NORMAL
+        </div>
+        <div class="vital-subtext">
+          <span>Qiskit ZZFeatureMap</span>
+          <span>Primary Classifier</span>
+        </div>
+      </div>
+
+      <div class="vital-card" style="border-top: 3px solid var(--accent-blue);">
+        <div class="vital-header">
+          <span>Stage 3 Backup: Random Forest</span>
+          <i class="fa-solid fa-diagram-project" style="color: var(--accent-blue);"></i>
+        </div>
+        <div style="font-size: 1.35rem; font-weight: 800; margin: 0.5rem 0 0.2rem 0; color: #60a5fa;" id="val-rf-pred">
+          NORMAL
+        </div>
+        <div class="vital-subtext">
+          <span id="val-decision-source">Fallback Standby</span>
+          <span>100-Tree Ensemble</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Emergency Alerts & Timestamp Log Banner -->
+    <div id="alert-banner" style="background: var(--card-bg); border: 1px solid var(--card-border); border-left: 4px solid var(--color-normal); border-radius: 14px; padding: 0.9rem 1.5rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <i class="fa-solid fa-bell" id="alert-banner-icon" style="color: var(--color-normal); font-size: 1.15rem;"></i>
+        <div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Stage 4: Live Emergency Alert & Decision Log</div>
+          <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-main);" id="val-alert-msg">NORMAL: All physiological vitals within safe limits</div>
+        </div>
+      </div>
+      <div style="font-size: 0.82rem; color: var(--text-muted); font-family: monospace;" id="val-alert-timestamp">
+        Timestamp: --
+      </div>
+    </div>
+
     <!-- Real-Time ECG Lead I Oscilloscope Monitor -->
     <div class="ecg-box">
       <div class="ecg-header">
@@ -646,13 +719,56 @@
           badge.innerHTML = iconHTML + risk;
           badge.className = 'risk-badge badge-' + risk;
 
+          if (latest.sensor_status) {
+            document.getElementById('val-sensor-status').textContent = latest.sensor_status;
+          }
+          if (latest.edge_status) {
+            const edgeEl = document.getElementById('val-edge-status');
+            edgeEl.textContent = latest.edge_status;
+            edgeEl.style.color = latest.edge_status.includes('HIGH_RISK') ? '#f87171' :
+                                 (latest.edge_status.includes('WARNING') ? '#fbbf24' : '#34d399');
+          }
+          if (latest.qsvc_pred) {
+            const qEl = document.getElementById('val-qsvc-pred');
+            qEl.textContent = latest.qsvc_pred;
+            qEl.style.color = latest.qsvc_pred === 'HIGH_RISK' ? '#f87171' :
+                              (latest.qsvc_pred === 'MODERATE' ? '#fbbf24' : '#c084fc');
+          }
+          if (latest.rf_pred) {
+            const rfEl = document.getElementById('val-rf-pred');
+            rfEl.textContent = latest.rf_pred;
+            rfEl.style.color = latest.rf_pred === 'HIGH_RISK' ? '#f87171' :
+                               (latest.rf_pred === 'MODERATE' ? '#fbbf24' : '#60a5fa');
+          }
+          if (latest.decision_source) {
+            document.getElementById('val-decision-source').textContent = latest.decision_source;
+          }
+
+          const alertBanner = document.getElementById('alert-banner');
+          const alertIcon   = document.getElementById('alert-banner-icon');
+          const alertMsgEl  = document.getElementById('val-alert-msg');
+          if (latest.alert_msg) {
+            alertMsgEl.textContent = latest.alert_msg;
+          } else {
+            alertMsgEl.textContent = `${risk}: Final classification via ${latest.decision_source || 'Primary QSVC'}`;
+          }
           if (risk === 'HIGH_RISK') {
+            alertBanner.style.borderLeftColor = '#ef4444';
+            alertIcon.style.color = '#ef4444';
             triggerEmergencyBeep();
+          } else if (risk === 'MODERATE') {
+            alertBanner.style.borderLeftColor = '#f59e0b';
+            alertIcon.style.color = '#f59e0b';
+          } else {
+            alertBanner.style.borderLeftColor = '#10b981';
+            alertIcon.style.color = '#10b981';
           }
 
           if (latest.timestamp) {
             const dt = new Date(latest.timestamp);
-            document.getElementById('last-update').textContent = dt.toLocaleTimeString();
+            const timeStr = dt.toLocaleTimeString();
+            document.getElementById('last-update').textContent = timeStr;
+            document.getElementById('val-alert-timestamp').textContent = `Timestamp: ${dt.toLocaleDateString()} ${timeStr}`;
           }
         }
 
