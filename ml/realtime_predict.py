@@ -23,14 +23,13 @@ import logging
 import config
 from alerts.notifier import send_emergency_alert
 
-# Fix Windows console encoding for Python 3.13+
+# Fix Windows console encoding for Python 3.7+
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
-    except AttributeError:
-        pass
+    if hasattr(sys.stdout, "reconfigure"):
+        getattr(sys.stdout, "reconfigure")(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        getattr(sys.stderr, "reconfigure")(encoding="utf-8")
 
 logging.basicConfig(
     level=logging.INFO,

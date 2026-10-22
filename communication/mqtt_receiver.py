@@ -22,14 +22,13 @@ from dotenv import load_dotenv
 load_dotenv()
 import config
 
-# Fix Windows console encoding for Python 3.13+
+# Fix Windows console encoding for Python 3.7+
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
-    except AttributeError:
-        pass
+    if hasattr(sys.stdout, "reconfigure"):
+        getattr(sys.stdout, "reconfigure")(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        getattr(sys.stderr, "reconfigure")(encoding="utf-8")
 
 # ─── Logging ──────────────────────────────────────────────────────
 logging.basicConfig(
