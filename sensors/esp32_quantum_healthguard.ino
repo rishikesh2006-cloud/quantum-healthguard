@@ -1,14 +1,19 @@
 /*
- * 🩺 Quantum HealthGuard — ESP32 Firmware
- * Reads MAX30102 (HR & SpO2), AD8232 (ECG Waveform), and DS18B20 (Temperature)
- * Connects to Wi-Fi and publishes structured JSON telemetry to Raspberry Pi 5 MQTT Broker.
+ * ==============================================================================
+ *  QUANTUM HEALTHGUARD — ESP32 HARDWARE FIRMWARE (STAGE 1 NODE)
+ * ==============================================================================
+ *  Compatible with: AD8232 (ECG), MAX30102 (HR + SpO2), DS18B20 (Temperature)
+ *  Integrates directly with:
+ *    - Stage 2: Raspberry Pi 5 / Laptop MQTT Broker (1883)
+ *    - Topics: healthguard/vitals, healthguard/ecg, healthguard/status
+ *    - Live Dashboard & Dual QSVC/Random Forest ML Classifier
  * 
- * Target Board: ESP32 Dev Module (38-pin or 30-pin)
- * Required Libraries (Install via Arduino Library Manager):
- *   1. PubSubClient by Nick O'Leary
- *   2. SparkFun MAX3010x Pulse and Proximity Sensor Library
- *   3. OneWire by Jim Studt et al.
- *   4. DallasTemperature by Miles Burton
+ *  Required Arduino Libraries:
+ *    1. PubSubClient by Nick O'Leary
+ *    2. SparkFun MAX3010x Pulse and Proximity Sensor Library
+ *    3. OneWire by Jim Studt
+ *    4. DallasTemperature by Miles Burton
+ * ==============================================================================
  */
 
 #include <WiFi.h>
@@ -19,30 +24,46 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-// ─── 1. CONFIGURATION (Edit with your Wi-Fi & Pi 5 IP) ────────────────────────
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";         // Your Wi-Fi Name
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";     // Your Wi-Fi Password
-const char* MQTT_BROKER   = "192.168.137.37";         // Your Raspberry Pi 5 IP Address
+// ==============================================================================
+// 1. NETWORK & MQTT SETTINGS (Configure for your Local Wi-Fi & Gateway)
+// ==============================================================================
+const char* WIFI_SSID     = "YOUR_WIFI_SSID";      // <-- Enter your Wi-Fi Name
+const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";  // <-- Enter your Wi-Fi Password
+const char* MQTT_BROKER   = "192.168.1.100";       // <-- IP of Raspberry Pi 5 or Laptop running main.py
 const int   MQTT_PORT     = 1883;
 const char* PATIENT_ID    = "P001";
 
-// ─── 2. PIN DEFINITIONS ───────────────────────────────────────────────────────
-// MAX30102 (I2C): SDA -> GPIO 21, SCL -> GPIO 22 (Default ESP32 Wire pins)
-#define AD8232_OUTPUT_PIN  34  // Analog pin for ECG waveform
-#define AD8232_LO_PLUS     35  // Leads off detector +
-#define AD8232_LO_MINUS    32  // Leads off detector -
-#define ONE_WIRE_BUS        4  // DS18B20 Temperature Data Pin
+// ==============================================================================
+// 2. PIN DEFINITIONS (ESP32 GPIO)
+// ==============================================================================
+// ECG Sensor (AD8232)
+const int ECG_PIN      = 34; // Analog ECG output
+const int LO_PLUS_PIN  = 35; // Leads-off detector +
+const int LO_MINUS_PIN = 32; // Leads-off detector -
 
-// ─── 3. OBJECT INITIALIZATION ─────────────────────────────────────────────────
+// MAX30102 I2C Pins
+const int SDA_PIN      = 21; // ESP32 Default SDA
+const int SCL_PIN      = 22; // ESP32 Default SCL
+
+// DS18B20 Temperature Sensor (Requires 4.7k pull-up resistor to 3.3V)
+const int TEMP_PIN     = 4;
+
+// ==============================================================================
+// 3. HARDWARE & CLIENT OBJECTS
+// ==============================================================================
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-MAX30105 particleSensor;
-OneWire oneWire(ONE_WIRE_BUS);
+MAX30105 pulseSensor;
+OneWire oneWire(TEMP_PIN);
 DallasTemperature tempSensor(&oneWire);
 
-// Heart Rate variables
-const byte RATE_SIZE = 4; // Increase for more smoothing
+// Sensor state flags
+bool pulseSensorReady = false;
+bool tempSensorReady  = false;
+
+// Heart Rate calculation smoothing
+const byte RATE_SIZE = 4;
 byte rates[RATE_SIZE];
 byte rateSpot = 0;
 long lastBeat = 0;
@@ -50,16 +71,22 @@ float beatsPerMinute = 72.0;
 int beatAvg = 72;
 float spo2Val = 98.0;
 
+// Non-blocking timers
 unsigned long lastVitalsPublish = 0;
-unsigned long lastEcgPublish = 0;
+unsigned long lastEcgPublish    = 0;
+unsigned long lastSerialDebug   = 0;
 
-// ─── 4. WI-FI & MQTT CONNECTIVITY ─────────────────────────────────────────────
+// ==============================================================================
+// 4. WI-FI & MQTT MANAGEMENT
+// ==============================================================================
 void setupWiFi() {
   delay(10);
-  Serial.print("\n[Wi-Fi] Connecting to ");
+  Serial.print("\n[Wi-Fi] Connecting to: ");
   Serial.println(WIFI_SSID);
 
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
   int retries = 0;
   while (WiFi.status() != WL_CONNECTED && retries < 20) {
     delay(500);
@@ -68,154 +95,236 @@ void setupWiFi() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[Wi-Fi] Connected!");
+    Serial.println("\n[Wi-Fi] Connected Successfully!");
     Serial.print("[Wi-Fi] ESP32 IP Address: ");
     Serial.println(WiFi.localIP());
   } else {
-    Serial.println("\n[Wi-Fi] Connection Failed! Will retry in main loop.");
+    Serial.println("\n[Wi-Fi] Connection Failed (Will retry in loop)");
   }
 }
 
 void reconnectMQTT() {
-  while (!mqttClient.connected()) {
-    Serial.print("[MQTT] Attempting connection to Pi 5 Gateway (");
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  if (!mqttClient.connected()) {
+    Serial.print("[MQTT] Connecting to Gateway (");
     Serial.print(MQTT_BROKER);
     Serial.print(")...");
 
-    String clientId = "ESP32HealthGuard-";
+    String clientId = "ESP32-QuantumHealthGuard-";
     clientId += String(random(0xffff), HEX);
 
     if (mqttClient.connect(clientId.c_str())) {
       Serial.println(" CONNECTED!");
       mqttClient.publish("healthguard/status", "{\"device\":\"ESP32\",\"status\":\"ONLINE\"}");
     } else {
-      Serial.print(" Failed, rc=");
+      Serial.print(" Failed (rc=");
       Serial.print(mqttClient.state());
-      Serial.println(" Retrying in 3 seconds...");
-      delay(3000);
+      Serial.println("). Retrying shortly...");
     }
   }
 }
 
-// ─── 5. SETUP ─────────────────────────────────────────────────────────────────
+// ==============================================================================
+// 5. SETUP
+// ==============================================================================
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n==================================================");
-  Serial.println("  Quantum HealthGuard — ESP32 Biosensor Node");
-  Serial.println("==================================================");
+  delay(1000);
 
-  // Pin Modes for AD8232 ECG
-  pinMode(AD8232_LO_PLUS, INPUT);
-  pinMode(AD8232_LO_MINUS, INPUT);
+  Serial.println("\n=======================================================");
+  Serial.println("  QUANTUM HEALTHGUARD — ESP32 MULTI-SENSOR NODE");
+  Serial.println("=======================================================");
 
-  // Initialize MAX30102 I2C
-  Wire.begin(21, 22);
-  if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) {
-    Serial.println("[MAX30102] Sensor not found! Check SDA/SCL wiring.");
+  // 1. Configure ECG pins (AD8232)
+  pinMode(ECG_PIN, INPUT);
+  pinMode(LO_PLUS_PIN, INPUT);
+  pinMode(LO_MINUS_PIN, INPUT);
+
+  // 2. Initialize I2C for MAX30102
+  Wire.begin(SDA_PIN, SCL_PIN);
+  if (pulseSensor.begin(Wire, I2C_SPEED_FAST)) {
+    pulseSensorReady = true;
+    pulseSensor.setup();
+    pulseSensor.setPulseAmplitudeRed(0x1F);
+    pulseSensor.setPulseAmplitudeIR(0x1F);
+    pulseSensor.setPulseAmplitudeGreen(0);
+    Serial.println("[OK] MAX30102 Pulse Oximeter initialized.");
   } else {
-    Serial.println("[MAX30102] Sensor initialized successfully.");
-    particleSensor.setup(); // Configure sensor with default settings
-    particleSensor.setPulseAmplitudeRed(0x0A); // Turn Red LED to low to indicate sensor running
-    particleSensor.setPulseAmplitudeGreen(0);  // Turn off Green LED
+    Serial.println("[ERROR] MAX30102 not detected! Check SDA(21), SCL(22), 3.3V, GND.");
   }
 
-  // Initialize DS18B20 Temperature Sensor
+  // 3. Initialize DS18B20 Temperature Sensor
   tempSensor.begin();
-  Serial.println("[DS18B20] Temperature sensor ready.");
+  tempSensor.setResolution(10);
+  tempSensor.setWaitForConversion(false); // Non-blocking reads
+  if (tempSensor.getDeviceCount() > 0) {
+    tempSensorReady = true;
+    Serial.println("[OK] DS18B20 Temperature Sensor detected.");
+  } else {
+    Serial.println("[WARNING] DS18B20 not detected. Verify 4.7k pull-up on GPIO 4.");
+  }
 
-  // Wi-Fi & MQTT Setup
+  // 4. Setup Wi-Fi & MQTT Client
   setupWiFi();
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setBufferSize(512);
+
+  Serial.println("-------------------------------------------------------");
+  Serial.println("Telemetry ready: Publishing to Quantum HealthGuard pipeline.");
+  Serial.println("-------------------------------------------------------\n");
 }
 
-// ─── 6. MAIN LOOP ─────────────────────────────────────────────────────────────
+// ==============================================================================
+// 6. MAIN LOOP
+// ==============================================================================
 void loop() {
+  // Maintain connectivity
   if (WiFi.status() != WL_CONNECTED) {
     setupWiFi();
-  }
-  if (!mqttClient.connected()) {
-    reconnectMQTT();
+  } else if (!mqttClient.connected()) {
+    static unsigned long lastMqttRetry = 0;
+    if (millis() - lastMqttRetry > 3000) {
+      lastMqttRetry = millis();
+      reconnectMQTT();
+    }
   }
   mqttClient.loop();
 
   unsigned long currentMillis = millis();
 
-  // ── Read MAX30102 Heart Rate & SpO2 ─────────────────────────────────────────
-  long irValue = particleSensor.getIR();
+  // ----------------------------------------------------------------------------
+  // A. SENSOR DATA ACQUISITION & CONTINUOUS BEAT DETECTION
+  // ----------------------------------------------------------------------------
+  long irValue  = 0;
+  long redValue = 0;
 
-  if (checkForBeat(irValue) == true) {
-    long delta = currentMillis - lastBeat;
-    lastBeat = currentMillis;
+  if (pulseSensorReady) {
+    irValue  = pulseSensor.getIR();
+    redValue = pulseSensor.getRed();
 
-    beatsPerMinute = 60 / (delta / 1000.0);
+    // Check for heart beat if finger is present (IR > 50,000)
+    if (irValue > 50000) {
+      if (checkForBeat(irValue)) {
+        long delta = currentMillis - lastBeat;
+        lastBeat = currentMillis;
 
-    if (beatsPerMinute < 255 && beatsPerMinute > 20) {
-      rates[rateSpot++] = (byte)beatsPerMinute;
-      rateSpot %= RATE_SIZE;
+        if (delta > 0) {
+          beatsPerMinute = 60.0 / (delta / 1000.0);
 
-      beatAvg = 0;
-      for (byte x = 0; x < RATE_SIZE; x++) {
-        beatAvg += rates[x];
+          if (beatsPerMinute >= 30 && beatsPerMinute <= 220) {
+            rates[rateSpot++] = (byte)beatsPerMinute;
+            rateSpot %= RATE_SIZE;
+
+            beatAvg = 0;
+            for (byte x = 0; x < RATE_SIZE; x++) {
+              beatAvg += rates[x];
+            }
+            beatAvg /= RATE_SIZE;
+          }
+        }
       }
-      beatAvg /= RATE_SIZE;
+
+      // SpO2 estimation using Red/IR ratio
+      float ratio = (float)redValue / (float)irValue;
+      spo2Val = 104.0 - (17.0 * ratio);
+      if (spo2Val > 100.0) spo2Val = 100.0;
+      if (spo2Val < 70.0)  spo2Val = 70.0;
+
+    } else {
+      // Finger not detected on sensor
+      beatAvg = 0;
+      spo2Val = 0.0;
     }
   }
 
-  // Approximate SpO2 from Red/IR LED intensity ratio
-  long redValue = particleSensor.getRed();
-  if (irValue > 50000) {
-    float ratio = (float)redValue / (float)irValue;
-    spo2Val = 104 - (17 * ratio);
-    if (spo2Val > 100) spo2Val = 100.0;
-    if (spo2Val < 80)  spo2Val = 80.0;
-  } else {
-    // No finger detected
-    beatAvg = 0;
-    spo2Val = 0.0;
+  // Read ECG signal and leads-off status
+  bool leadsOff = (digitalRead(LO_PLUS_PIN) == HIGH) || (digitalRead(LO_MINUS_PIN) == HIGH);
+  int ecgValue  = leadsOff ? 0 : analogRead(ECG_PIN);
+
+  // ----------------------------------------------------------------------------
+  // B. PUBLISH ECG WAVEFORM (Every 50 ms / 20 Hz for Live Oscilloscope)
+  // ----------------------------------------------------------------------------
+  if (currentMillis - lastEcgPublish >= 50) {
+    lastEcgPublish = currentMillis;
+
+    if (mqttClient.connected()) {
+      String ecgPayload = "{";
+      ecgPayload += "\"sample\":" + String(ecgValue) + ",";
+      ecgPayload += "\"leads_off\":" + String(leadsOff ? "true" : "false") + ",";
+      ecgPayload += "\"timestamp\":" + String(currentMillis / 1000.0, 2);
+      ecgPayload += "}";
+
+      mqttClient.publish("healthguard/ecg", ecgPayload.c_str());
+    }
   }
 
-  // ── Publish Vitals JSON (Every 1000 ms) ──────────────────────────────────────
+  // ----------------------------------------------------------------------------
+  // C. PUBLISH VITAL SIGNS TELEMETRY TO STAGE 2 EDGE (Every 1000 ms / 1 Hz)
+  // ----------------------------------------------------------------------------
   if (currentMillis - lastVitalsPublish >= 1000) {
     lastVitalsPublish = currentMillis;
 
-    // Read Temperature from DS18B20
-    tempSensor.requestTemperatures();
-    float bodyTemp = tempSensor.getTempCByIndex(0);
-    if (bodyTemp < -50 || bodyTemp > 80) {
-      bodyTemp = 36.6; // Fallback default if disconnected
+    // Fetch DS18B20 Temperature
+    float tempC = 36.6; // Nominal default fallback
+    if (tempSensorReady) {
+      tempSensor.requestTemperatures();
+      float readTemp = tempSensor.getTempCByIndex(0);
+      if (readTemp != DEVICE_DISCONNECTED_C && readTemp > 0.0 && readTemp < 60.0) {
+        tempC = readTemp;
+      }
     }
 
-    // Build JSON Payload
-    String payload = "{";
-    payload += "\"patient_id\":\"" + String(PATIENT_ID) + "\",";
-    payload += "\"heart_rate\":" + String(beatAvg > 0 ? beatAvg : 72) + ",";
-    payload += "\"spo2\":" + String(spo2Val > 0 ? spo2Val : 98.0, 1) + ",";
-    payload += "\"temperature\":" + String(bodyTemp, 2) + ",";
-    payload += "\"timestamp\":" + String(currentMillis / 1000.0, 2);
-    payload += "}";
+    // Determine sensor health status
+    String statusStr = "ONLINE (";
+    statusStr += (leadsOff ? "ECG:LEADS_OFF" : "ECG:OK");
+    statusStr += (pulseSensorReady && irValue > 50000 ? "+MAX30102:OK" : "+MAX30102:NO_FINGER");
+    statusStr += (tempSensorReady ? "+DS18B20:OK" : "+DS18B20:FAIL");
+    statusStr += ")";
 
-    mqttClient.publish("healthguard/vitals", payload.c_str());
-    Serial.print("[PUB Vitals] ");
-    Serial.println(payload);
+    // Prepare values for Stage 2 Edge & Stage 3 AI Predictor
+    float pubHR   = (beatAvg > 0) ? (float)beatAvg : 72.0;
+    float pubSpO2 = (spo2Val > 0.0) ? spo2Val : 98.0;
+
+    // Build compatible JSON payload for Stage 2 Edge Processor
+    String vitalsPayload = "{";
+    vitalsPayload += "\"patient_id\":\"" + String(PATIENT_ID) + "\",";
+    vitalsPayload += "\"heart_rate\":" + String(pubHR, 1) + ",";
+    vitalsPayload += "\"spo2\":" + String(pubSpO2, 1) + ",";
+    vitalsPayload += "\"temperature\":" + String(tempC, 2) + ",";
+    vitalsPayload += "\"sensor_status\":\"" + statusStr + "\",";
+    vitalsPayload += "\"timestamp\":" + String(currentMillis / 1000.0, 2);
+    vitalsPayload += "}";
+
+    if (mqttClient.connected()) {
+      mqttClient.publish("healthguard/vitals", vitalsPayload.c_str());
+      Serial.print("[PUB Vitals] ");
+      Serial.println(vitalsPayload);
+    } else {
+      Serial.print("[LOCAL Vitals] (MQTT Disconnected): ");
+      Serial.println(vitalsPayload);
+    }
   }
 
-  // ── Publish ECG Waveform Sample (Every 100 ms / 10 Hz) ─────────────────────
-  if (currentMillis - lastEcgPublish >= 100) {
-    lastEcgPublish = currentMillis;
+  // ----------------------------------------------------------------------------
+  // D. SERIAL MONITOR DEBUG OUTPUT (Compatible with your test output)
+  // ----------------------------------------------------------------------------
+  if (currentMillis - lastSerialDebug >= 200) {
+    lastSerialDebug = currentMillis;
 
-    int ecgSample = 512;
-    if ((digitalRead(AD8232_LO_PLUS) == 1) || (digitalRead(AD8232_LO_MINUS) == 1)) {
-      // Leads Off detected
-      ecgSample = 0;
-    } else {
-      ecgSample = analogRead(AD8232_OUTPUT_PIN);
-    }
-
-    String ecgPayload = "{";
-    ecgPayload += "\"sample\":" + String(ecgSample) + ",";
-    ecgPayload += "\"timestamp\":" + String(currentMillis / 1000.0, 2);
-    ecgPayload += "}";
-
-    mqttClient.publish("healthguard/ecg", ecgPayload.c_str());
+    Serial.print("ECG=");
+    Serial.print(ecgValue);
+    Serial.print(", LeadsOff=");
+    Serial.print(leadsOff ? "YES" : "NO");
+    Serial.print(", IR=");
+    Serial.print(irValue);
+    Serial.print(", RED=");
+    Serial.print(redValue);
+    Serial.print(", HR_BPM=");
+    Serial.print(beatAvg);
+    Serial.print(", SpO2=");
+    Serial.print(spo2Val, 1);
+    Serial.print(", Temp_C=");
+    Serial.println(tempSensorReady ? String(tempSensor.getTempCByIndex(0), 1) : "Error");
   }
 }
