@@ -88,6 +88,7 @@ def validate_and_filter_edge(data: dict) -> tuple[bool, str]:
     """
     Validates incoming ESP32 packet fields, timestamps, and filters out
     noisy spikes, incomplete packets, or duplicate readings.
+    Accepts zero values (0.0) as valid "no finger / sensor waiting" states.
     """
     required_fields = ("heart_rate", "spo2", "temperature")
     for field in required_fields:
@@ -101,12 +102,13 @@ def validate_and_filter_edge(data: dict) -> tuple[bool, str]:
     except (ValueError, TypeError):
         return False, "Invalid non-numeric physiological value"
 
-    # Physiological noise & spike bounds filter
-    if not (20.0 <= hr <= 240.0):
+    # Allow zero values through (real "no finger" or "sensor disconnected" states)
+    # Only reject impossible non-zero spikes
+    if hr != 0.0 and not (20.0 <= hr <= 240.0):
         return False, f"Filtered noisy HR spike ({hr} BPM out of physiological bounds)"
-    if not (50.0 <= spo2 <= 100.0):
+    if spo2 != 0.0 and not (50.0 <= spo2 <= 100.0):
         return False, f"Filtered noisy SpO2 reading ({spo2}% out of bounds)"
-    if not (25.0 <= temp <= 45.0):
+    if temp != 0.0 and not (10.0 <= temp <= 50.0):
         return False, f"Filtered noisy Temperature reading ({temp}°C out of bounds)"
 
     # Duplicate timestamp check
@@ -129,18 +131,26 @@ def check_emergency(data: dict) -> tuple[str, str, list[str]]:
     """
     Stage 2 Raspberry Pi 5 Edge Safety Check against predefined thresholds.
     Returns (initial_risk_level, edge_safety_status, [reasons]).
+    When sensor values are 0 (no finger / disconnected), report WAITING status.
     """
     thr     = config.THRESHOLDS
-    hr      = float(data.get("heart_rate", 72.0))
-    spo2    = float(data.get("spo2", 98.0))
-    temp    = float(data.get("temperature", 36.6))
+    hr      = float(data.get("heart_rate", 0.0))
+    spo2    = float(data.get("spo2", 0.0))
+    temp    = float(data.get("temperature", 0.0))
+    finger  = data.get("finger_detected", True)
     reasons = []
 
+    # If no finger is on sensor, report waiting status (not a health risk)
+    if hr == 0.0 and spo2 == 0.0:
+        return "WAITING", "WAITING (No Finger on Sensor)", ["Place finger on MAX30102"]
+    if temp == 0.0:
+        reasons.append("Temperature sensor not in contact")
+
     if hr   > thr["heart_rate"]["high"]:  reasons.append(f"HR HIGH ({hr} BPM)")
-    if hr   < thr["heart_rate"]["low"]:   reasons.append(f"HR LOW ({hr} BPM)")
-    if spo2 < thr["spo2"]["critical"]:    reasons.append(f"SpO2 CRITICAL ({spo2}%)")
+    if hr   < thr["heart_rate"]["low"] and hr > 0:   reasons.append(f"HR LOW ({hr} BPM)")
+    if spo2 < thr["spo2"]["critical"] and spo2 > 0:  reasons.append(f"SpO2 CRITICAL ({spo2}%)")
     if temp > thr["temperature"]["high"]: reasons.append(f"FEVER ({temp}°C)")
-    if temp < thr["temperature"]["low"]:  reasons.append(f"HYPOTHERMIA ({temp}°C)")
+    if temp < thr["temperature"]["low"] and temp > 10:  reasons.append(f"HYPOTHERMIA ({temp}°C)")
 
     if reasons:
         return "HIGH_RISK", "HIGH_RISK (Threshold Breach)", reasons

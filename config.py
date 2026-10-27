@@ -78,5 +78,7 @@ THRESHOLDS = {
 }
 
 # ─── Simulator & Performance Load ─────────────────────────────────
+# Simulator is PERMANENTLY DISABLED — real hardware sensors only
 SIMULATOR_INTERVAL_SEC = float(_st.get("SIMULATOR_SPEED_SEC", 1.0))
-SIMULATOR_ANOMALY_RATE = 0.05  # 5% chance of injecting an anomaly
+SIMULATOR_ANOMALY_RATE = 0.0  # No anomaly injection
+USE_SIMULATOR = False  # ALWAYS False — never use fake data

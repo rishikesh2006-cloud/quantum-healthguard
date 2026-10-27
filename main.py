@@ -1,10 +1,7 @@
 """
-Quantum HealthGuard — Master System Entrypoint & Multi-Device Supervisor
-Starts all 5 microservices (MQTT Broker, Data Receiver, Sensor Simulator, AI Predictor, Flask Web Server)
-concurrently within a single process supervisor and displays local & Wi-Fi LAN access links.
-
-Usage in VS Code / Terminal:
-    python main.py
+Quantum HealthGuard — Master System Entrypoint
+HARDWARE MODE ONLY — No simulator, no random values.
+Starts: MQTT Broker, Edge Receiver, Serial Bridge, AI Predictor, Flask Dashboard.
 """
 
 import sys
@@ -13,7 +10,6 @@ import time
 import subprocess
 import socket
 
-# Fix Windows console encoding for Python 3.7+
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     if hasattr(sys.stdout, "reconfigure"):
@@ -25,7 +21,6 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 PYTHON_BIN = sys.executable
 
 def get_lan_ip():
-    """Detects local LAN/Wi-Fi IP address for multi-device network connections."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -44,8 +39,8 @@ def main():
     port = 5000
 
     print("=" * 65)
-    print("  QUANTUM HEALTHGUARD -- MULTI-DEVICE MASTER SUPERVISOR")
-    print("  Starting all 5 system microservices...")
+    print("  QUANTUM HEALTHGUARD — REAL HARDWARE MODE")
+    print("  No simulator. No random values. Real sensors only.")
     print("=" * 65)
     print()
 
@@ -57,53 +52,56 @@ def main():
         processes.append(("Broker", p_broker))
         time.sleep(2)
 
-        # 2. Start MQTT Data Receiver (Stage 2 Edge Processor)
+        # 2. Start Edge Processor (receives data from ESP32 via MQTT)
         p_recv = start_service("RECEIVER", os.path.join(ROOT_DIR, "communication", "mqtt_receiver.py"))
         processes.append(("Receiver", p_recv))
         time.sleep(2)
 
-        # 3. Start Sensor Simulator (Stage 1 ESP32 Node)
-        p_sim = start_service("SIMULATOR", os.path.join(ROOT_DIR, "simulator", "sensor_simulator.py"))
-        processes.append(("Simulator", p_sim))
-        time.sleep(2)
+        # 3. Start USB Serial Bridge (reads ESP32 COM port directly as backup)
+        serial_bridge_path = os.path.join(ROOT_DIR, "communication", "serial_receiver.py")
+        if os.path.exists(serial_bridge_path):
+            p_serial = start_service("SERIAL_BRIDGE", serial_bridge_path)
+            processes.append(("SerialBridge", p_serial))
+            time.sleep(2)
 
-        # 4. Start Real-Time AI Predictor (Stage 3 Quantum QSVC + Backup RF)
+        # 4. Start AI Predictor (Quantum QSVC + Random Forest)
         p_pred = start_service("PREDICTOR", os.path.join(ROOT_DIR, "ml", "realtime_predict.py"))
         processes.append(("Predictor", p_pred))
         time.sleep(2)
 
         print()
         print("=" * 65)
-        print("  ALL 5 MICROSERVICES OPERATIONAL & MULTI-DEVICE READY!")
-        print("  -------------------------------------------------------------")
-        print(f"  [MOBILE] Phone / Tablet Wi-Fi URL : http://{lan_ip}:{port}")
-        print(f"  [LAPTOP] Local PC Client View     : http://localhost:{port}")
-        print(f"  [ADMIN]  Admin Control Center     : http://localhost:{port}/admin")
-        print("  -------------------------------------------------------------")
-        print("  Press Ctrl+C to stop all services cleanly.")
+        print("  ALL SERVICES RUNNING — REAL HARDWARE MODE")
+        print("  ---------------------------------------------------------")
+        print(f"  [MOBILE] Phone / Tablet : http://{lan_ip}:{port}")
+        print(f"  [LAPTOP] Local PC       : http://localhost:{port}")
+        print(f"  [ADMIN]  Admin Panel    : http://localhost:{port}/admin")
+        print("  ---------------------------------------------------------")
+        print("  Place finger on MAX30102 to see real Heart Rate & SpO2.")
+        print("  Hold DS18B20 in palm to see real Body Temperature.")
+        print("  Press Ctrl+C to stop all services.")
         print("=" * 65)
         print()
 
-        # 5. Run Dashboard Server (Stage 4 Live Dashboard & Alerts)
+        # 5. Start Dashboard
         p_dash = start_service("DASHBOARD", os.path.join(ROOT_DIR, "dashboard", "app.py"))
         processes.append(("Dashboard", p_dash))
 
-        # Keep supervisor alive & monitor child processes
+        # Monitor
         while True:
             time.sleep(1)
             for name, proc in processes:
                 if proc.poll() is not None:
-                    print(f"[SUPERVISOR WARNING] Service '{name}' exited with code {proc.returncode}")
+                    print(f"[WARNING] Service '{name}' exited with code {proc.returncode}")
 
     except KeyboardInterrupt:
-        print("\n\n[SUPERVISOR] Termination signal received. Stopping all services...")
+        print("\n\n[SUPERVISOR] Stopping all services...")
         for name, proc in processes:
-            print(f"[SUPERVISOR] Terminating {name} (PID {proc.pid})...")
             try:
                 proc.terminate()
             except Exception:
                 pass
-        print("[SUPERVISOR] All Quantum HealthGuard services stopped cleanly.")
+        print("[SUPERVISOR] All services stopped.")
 
 if __name__ == "__main__":
     main()

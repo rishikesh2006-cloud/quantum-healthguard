@@ -32,7 +32,11 @@ SPO2_CRITICAL = 92
 # Body Temperature High Limit (°C):
 TEMP_HIGH = 38.5
 
-# ─── ⚡ PERFORMANCE & SYSTEM LOAD REDUCTION ────────────────────────
+# ─── ⚡ HARDWARE VS SIMULATOR MODE ──────────────────────────────
+# Set to 'false' to use real ESP32 biomedical sensors (default),
+# or 'true' to use the software simulator for testing without hardware:
+USE_SIMULATOR = false
+
 # Simulator interval in seconds (Increase to 2.0 to reduce CPU load):
 SIMULATOR_SPEED_SEC = 1.0
 

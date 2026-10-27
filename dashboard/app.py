@@ -182,12 +182,22 @@ def api_latest():
     patient_id = request.args.get("patient_id")
     readings = get_readings(5, patient_id=patient_id)
     if not readings:
-        return jsonify({})
+        return jsonify({"status": "waiting", "message": "No sensor data received yet"})
     # Prefer the newest reading that has completed Stage 3 QSVC + RF analysis
     for r in reversed(readings):
         if r.get("decision_source") and r.get("decision_source") != "Stage 2 Edge Pre-Check":
+            # Add a waiting flag if heart_rate is 0 (no finger on sensor)
+            if r.get("heart_rate", 0) == 0 and r.get("spo2", 0) == 0:
+                r["sensor_waiting"] = True
+            else:
+                r["sensor_waiting"] = False
             return jsonify(r)
-    return jsonify(readings[-1])
+    latest = readings[-1]
+    if latest.get("heart_rate", 0) == 0 and latest.get("spo2", 0) == 0:
+        latest["sensor_waiting"] = True
+    else:
+        latest["sensor_waiting"] = False
+    return jsonify(latest)
 
 
 @app.route("/api/data")
