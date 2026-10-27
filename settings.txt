@@ -17,8 +17,8 @@ PORT = 5000
 # Server Host (0.0.0.0 allows all devices on Wi-Fi to connect):
 HOST = 0.0.0.0
 
-# MQTT Broker Settings:
-MQTT_BROKER = localhost
+# MQTT Broker Settings (Connected to Stage 2 Raspberry Pi 5 Gateway):
+MQTT_BROKER = 192.168.137.245
 MQTT_PORT = 1883
 
 # ─── 🚨 EMERGENCY MEDICAL THRESHOLDS ──────────────────────────────

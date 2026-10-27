@@ -28,7 +28,7 @@
 // ==============================================================================
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";      // <-- Your Wi-Fi Name
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";  // <-- Your Wi-Fi Password
-const char* MQTT_BROKER   = "192.168.137.1";       // <-- IP of Raspberry Pi 5 or Laptop
+const char* MQTT_BROKER   = "192.168.137.245";     // <-- IP of Raspberry Pi 5 Gateway
 const int   MQTT_PORT     = 1883;
 const char* PATIENT_ID    = "P001";
 

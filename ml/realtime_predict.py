@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 import sqlite3
 import pickle
+from datetime import datetime, timezone
 import numpy as np
 import paho.mqtt.client as mqtt
 import logging
@@ -63,14 +64,24 @@ if config.MODEL_PATH.exists():
         log.warning(f"[BACKUP AI]  Could not load Random Forest model: {e}")
 
 
-def update_db_analysis(record_id: int, qsvc_pred: str, rf_pred: str,
+def update_db_analysis(vital_data: dict, qsvc_pred: str, rf_pred: str,
                        final_risk: str, decision_source: str, alert_msg: str):
-    """Updates the SQLite record with Stage 3 Primary QSVC, Backup RF, and Final Risk Classification."""
-    if not record_id:
-        return
+    """Updates or inserts the Stage 3 analysis record into Laptop SQLite for the Live Dashboard."""
+    record_id     = int(vital_data.get("record_id", 0))
+    patient_id    = vital_data.get("patient_id", config.DEFAULT_PATIENT_ID)
+    timestamp     = vital_data.get("timestamp") or datetime.now(timezone.utc).isoformat()
+    hr            = float(vital_data.get("heart_rate", 0.0))
+    spo2          = float(vital_data.get("spo2", 0.0))
+    temp          = float(vital_data.get("temperature", 0.0))
+    sensor_status = vital_data.get("sensor_status", "ONLINE (ESP32 Wi-Fi/MQTT)")
+    edge_status   = vital_data.get("edge_status", "SAFE (Pi 5 Edge)")
+
     try:
         conn = sqlite3.connect(config.DB_PATH)
-        conn.execute("""
+        cur = conn.cursor()
+        
+        # Try update if local record exists
+        cur.execute("""
             UPDATE patient_data
             SET qsvc_pred = ?,
                 rf_pred = ?,
@@ -79,10 +90,24 @@ def update_db_analysis(record_id: int, qsvc_pred: str, rf_pred: str,
                 alert_msg = ?
             WHERE id = ?
         """, (qsvc_pred, rf_pred, final_risk, decision_source, alert_msg, record_id))
+
+        # If record was created on remote Raspberry Pi 5 edge, insert it into laptop DB
+        if cur.rowcount == 0:
+            cur.execute("""
+                INSERT INTO patient_data
+                    (patient_id, timestamp, heart_rate, spo2, temperature,
+                     risk_level, sensor_status, edge_status, qsvc_pred, rf_pred, decision_source, alert_msg)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                patient_id, timestamp, hr, spo2, temp,
+                final_risk, sensor_status, edge_status, qsvc_pred, rf_pred,
+                decision_source, alert_msg
+            ))
+
         conn.commit()
         conn.close()
     except Exception as e:
-        log.error(f"Database update error for record #{record_id}: {e}")
+        log.error(f"Database sync error: {e}")
 
 
 def analyze_processed_vitals(vital_data: dict):
@@ -155,7 +180,7 @@ def analyze_processed_vitals(vital_data: dict):
         alert_msg = f"NORMAL: Vitals stable ({decision_source})"
 
     # Persist Stage 3 analysis results into SQLite for Stage 4 Live Dashboard
-    update_db_analysis(record_id, qsvc_pred, rf_pred, final_risk, decision_source, alert_msg)
+    update_db_analysis(vital_data, qsvc_pred, rf_pred, final_risk, decision_source, alert_msg)
 
     log.info(
         f"[STAGE 3 AI] #{record_id} HR={hr:5.1f} | SpO2={spo2:5.1f}% | Temp={temp:5.2f}°C -> "

@@ -47,15 +47,21 @@ def main():
     processes = []
 
     try:
-        # 1. Start MQTT Broker
-        p_broker = start_service("BROKER", os.path.join(ROOT_DIR, "communication", "mqtt_broker.py"))
-        processes.append(("Broker", p_broker))
-        time.sleep(2)
+        import config
 
-        # 2. Start Edge Processor (receives data from ESP32 via MQTT)
-        p_recv = start_service("RECEIVER", os.path.join(ROOT_DIR, "communication", "mqtt_receiver.py"))
-        processes.append(("Receiver", p_recv))
-        time.sleep(2)
+        # 1 & 2. MQTT Broker & Edge Processor
+        if config.MQTT_BROKER in ("localhost", "127.0.0.1"):
+            print("[INFO] Starting local MQTT Broker & Edge Processor...")
+            p_broker = start_service("BROKER", os.path.join(ROOT_DIR, "communication", "mqtt_broker.py"))
+            processes.append(("Broker", p_broker))
+            time.sleep(2)
+
+            p_recv = start_service("RECEIVER", os.path.join(ROOT_DIR, "communication", "mqtt_receiver.py"))
+            processes.append(("Receiver", p_recv))
+            time.sleep(2)
+        else:
+            print(f"[EDGE NODE] Using Remote Raspberry Pi 5 Edge Gateway at {config.MQTT_BROKER}:{config.MQTT_PORT}")
+            print(f"[EDGE NODE] Raspberry Pi 5 is handling Mosquitto Broker & Stage 2 Edge Processing [OK]")
 
         # 3. Start USB Serial Bridge (reads ESP32 COM port directly as backup)
         serial_bridge_path = os.path.join(ROOT_DIR, "communication", "serial_receiver.py")
@@ -64,7 +70,7 @@ def main():
             processes.append(("SerialBridge", p_serial))
             time.sleep(2)
 
-        # 4. Start AI Predictor (Quantum QSVC + Random Forest)
+        # 4. Start AI Predictor (Stage 3 Quantum QSVC + Random Forest on Laptop)
         p_pred = start_service("PREDICTOR", os.path.join(ROOT_DIR, "ml", "realtime_predict.py"))
         processes.append(("Predictor", p_pred))
         time.sleep(2)
