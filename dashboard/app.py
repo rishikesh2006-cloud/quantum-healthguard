@@ -184,15 +184,15 @@ def api_latest():
     if not readings:
         return jsonify({"status": "waiting", "message": "No sensor data received yet"})
     # Prefer the newest reading that has completed Stage 3 QSVC + RF analysis
-    for r in reversed(readings):
+    for r in readings:
         if r.get("decision_source") and r.get("decision_source") != "Stage 2 Edge Pre-Check":
-            # Add a waiting flag if heart_rate is 0 (no finger on sensor)
+            # Add waiting flag if sensor reports 0 (no finger on sensor)
             if r.get("heart_rate", 0) == 0 and r.get("spo2", 0) == 0:
                 r["sensor_waiting"] = True
             else:
                 r["sensor_waiting"] = False
             return jsonify(r)
-    latest = readings[-1]
+    latest = readings[0]
     if latest.get("heart_rate", 0) == 0 and latest.get("spo2", 0) == 0:
         latest["sensor_waiting"] = True
     else:

@@ -2,9 +2,10 @@
  * ==============================================================================
  *  QUANTUM HEALTHGUARD — ESP32 HARDWARE FIRMWARE (STAGE 1 NODE)
  *  REAL VALUES ONLY — No fake/fallback data ever sent.
+ *  NON-BLOCKING SAMPLING — Fast continuous loop for MAX30102 beat detection.
  * ==============================================================================
  *  Sensors: AD8232 (ECG), MAX30102 (HR + SpO2), DS18B20 (Temperature)
- *  Communication: Wi-Fi + MQTT to Raspberry Pi 5 / Laptop
+ *  Communication: Wi-Fi + MQTT (Direct to Pi 5) AND USB Serial (Bridge to Pi 5)
  *  Topics: healthguard/vitals, healthguard/ecg, healthguard/status
  *
  *  Required Arduino Libraries:
@@ -24,11 +25,11 @@
 #include <DallasTemperature.h>
 
 // ==============================================================================
-// 1. NETWORK & MQTT SETTINGS — CHANGE THESE 3 LINES BEFORE UPLOADING
+// 1. NETWORK & MQTT SETTINGS
 // ==============================================================================
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";      // <-- Your Wi-Fi Name
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";  // <-- Your Wi-Fi Password
-const char* MQTT_BROKER   = "192.168.137.245";     // <-- IP of Raspberry Pi 5 Gateway
+const char* WIFI_SSID     = "asus123";          // Mobile Hotspot SSID
+const char* WIFI_PASSWORD = "12345678";         // Mobile Hotspot Password
+const char* MQTT_BROKER   = "192.168.137.245"; // Raspberry Pi 5 Gateway IP
 const int   MQTT_PORT     = 1883;
 const char* PATIENT_ID    = "P001";
 
@@ -43,7 +44,7 @@ const int SCL_PIN      = 22;
 const int TEMP_PIN     = 4;
 
 // ==============================================================================
-// 3. HARDWARE OBJECTS
+// 3. HARDWARE OBJECTS & STATE
 // ==============================================================================
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
@@ -55,7 +56,7 @@ DallasTemperature tempSensor(&oneWire);
 bool pulseSensorReady = false;
 bool tempSensorReady  = false;
 
-// Heart Rate smoothing
+// Heart Rate smoothing & detection
 const byte RATE_SIZE = 4;
 byte rates[RATE_SIZE];
 byte rateSpot = 0;
@@ -64,44 +65,42 @@ float beatsPerMinute = 0.0;
 int beatAvg = 0;
 float spo2Val = 0.0;
 bool fingerDetected = false;
+float currentTempC = 0.0;
 
-// Timers
+// Non-blocking Timers
 unsigned long lastVitalsPublish = 0;
 unsigned long lastEcgPublish    = 0;
+unsigned long lastWifiCheck     = 0;
+unsigned long lastMqttCheck     = 0;
 unsigned long lastSerialDebug   = 0;
 
 // ==============================================================================
-// 4. WI-FI & MQTT
+// 4. NON-BLOCKING WI-FI & MQTT
 // ==============================================================================
-void setupWiFi() {
-  Serial.print("\n[Wi-Fi] Connecting to: ");
-  Serial.println(WIFI_SSID);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < 20) {
-    delay(500);
-    Serial.print(".");
-    retries++;
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[Wi-Fi] Connected!");
-    Serial.print("[Wi-Fi] ESP32 IP: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("\n[Wi-Fi] Failed. Will retry.");
+void checkWiFiConnection() {
+  if (WiFi.status() != WL_CONNECTED) {
+    if (millis() - lastWifiCheck > 5000) {
+      lastWifiCheck = millis();
+      Serial.println("[Wi-Fi] Connecting to asus123...");
+      WiFi.disconnect();
+      WiFi.reconnect();
+    }
   }
 }
 
-void reconnectMQTT() {
-  if (WiFi.status() != WL_CONNECTED) return;
-  if (!mqttClient.connected()) {
-    String clientId = "ESP32-QHG-" + String(random(0xffff), HEX);
-    if (mqttClient.connect(clientId.c_str())) {
-      Serial.println("[MQTT] Connected to Gateway!");
-      mqttClient.publish("healthguard/status", "{\"device\":\"ESP32\",\"status\":\"ONLINE\"}");
+void checkMQTTConnection() {
+  if (WiFi.status() == WL_CONNECTED && !mqttClient.connected()) {
+    if (millis() - lastMqttCheck > 4000) {
+      lastMqttCheck = millis();
+      String clientId = "ESP32-QHG-" + String(random(0xffff), HEX);
+      Serial.print("[MQTT] Connecting to Edge Gateway (192.168.137.245:1883)... ");
+      if (mqttClient.connect(clientId.c_str())) {
+        Serial.println("CONNECTED!");
+        mqttClient.publish("healthguard/status", "{\"device\":\"ESP32\",\"status\":\"ONLINE\"}");
+      } else {
+        Serial.print("Failed, rc=");
+        Serial.println(mqttClient.state());
+      }
     }
   }
 }
@@ -111,61 +110,81 @@ void reconnectMQTT() {
 // ==============================================================================
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  delay(500);
 
-  Serial.println("\n=== QUANTUM HEALTHGUARD — REAL SENSOR MODE ===");
+  Serial.println("\n==================================================");
+  Serial.println("  QUANTUM HEALTHGUARD — REAL SENSOR MODE ONLY     ");
+  Serial.println("==================================================");
 
+  // 1. GPIO Setup
   pinMode(ECG_PIN, INPUT);
   pinMode(LO_PLUS_PIN, INPUT);
   pinMode(LO_MINUS_PIN, INPUT);
 
+  // 2. I2C & MAX30102 Pulse Oximeter Setup
   Wire.begin(SDA_PIN, SCL_PIN);
   if (pulseSensor.begin(Wire, I2C_SPEED_FAST)) {
     pulseSensorReady = true;
     pulseSensor.setup();
-    pulseSensor.setPulseAmplitudeRed(0x1F);
-    pulseSensor.setPulseAmplitudeIR(0x1F);
+    // High amplitude for reliable finger penetration
+    pulseSensor.setPulseAmplitudeRed(0x2A);
+    pulseSensor.setPulseAmplitudeIR(0x2A);
     pulseSensor.setPulseAmplitudeGreen(0);
-    Serial.println("[OK] MAX30102 detected.");
+    Serial.println("[OK] MAX30102 pulse sensor initialized.");
   } else {
-    Serial.println("[ERROR] MAX30102 not found!");
+    Serial.println("[ERROR] MAX30102 not detected on I2C (SDA=21, SCL=22)!");
   }
 
+  // 3. DS18B20 Temperature Setup
   tempSensor.begin();
   tempSensor.setResolution(10);
-  tempSensor.setWaitForConversion(false);
+  tempSensor.setWaitForConversion(false); // Non-blocking!
   if (tempSensor.getDeviceCount() > 0) {
     tempSensorReady = true;
-    Serial.println("[OK] DS18B20 detected.");
+    tempSensor.requestTemperatures(); // Trigger first conversion
+    Serial.println("[OK] DS18B20 temperature probe initialized on GPIO 4.");
   } else {
-    Serial.println("[WARNING] DS18B20 not found.");
+    Serial.println("[WARNING] DS18B20 not detected on GPIO 4.");
   }
 
-  setupWiFi();
+  // 4. Wi-Fi Startup (Non-blocking: attempt up to 3 seconds, continue anyway)
+  Serial.print("[Wi-Fi] Connecting to SSID: ");
+  Serial.println(WIFI_SSID);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  unsigned long startWifi = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startWifi < 3000) {
+    delay(200);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[Wi-Fi] Connected! IP: " + WiFi.localIP().toString());
+  } else {
+    Serial.println("\n[Wi-Fi] Not connected yet; background retry will maintain connection.");
+  }
+
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
   mqttClient.setBufferSize(512);
 
-  Serial.println("=== SENDING REAL VALUES ONLY — NO FAKE DATA ===\n");
+  Serial.println("=== SYSTEM READY — PLACE FINGER ON SENSOR FOR REAL READINGS ===\n");
 }
 
 // ==============================================================================
-// 6. MAIN LOOP — REAL VALUES ONLY
+// 6. MAIN LOOP — CONTINUOUS NON-BLOCKING SAMPLING
 // ==============================================================================
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) {
-    setupWiFi();
-  } else if (!mqttClient.connected()) {
-    static unsigned long lastRetry = 0;
-    if (millis() - lastRetry > 3000) {
-      lastRetry = millis();
-      reconnectMQTT();
-    }
-  }
-  mqttClient.loop();
-
   unsigned long now = millis();
 
-  // --- A. READ SENSORS (REAL VALUES) ---
+  // Non-blocking network management
+  checkWiFiConnection();
+  checkMQTTConnection();
+  if (mqttClient.connected()) {
+    mqttClient.loop();
+  }
+
+  // --- A. REAL SENSOR SAMPLING (MAX30102) ---
   long irValue  = 0;
   long redValue = 0;
 
@@ -173,112 +192,123 @@ void loop() {
     irValue  = pulseSensor.getIR();
     redValue = pulseSensor.getRed();
 
-    // Only calculate HR/SpO2 when finger is actually on the sensor
-    if (irValue > 50000) {
+    // Finger threshold: IR typically rises above 30,000 upon contact
+    if (irValue > 30000) {
       fingerDetected = true;
 
+      // Pulse beat detection
       if (checkForBeat(irValue)) {
         long delta = now - lastBeat;
         lastBeat = now;
-        if (delta > 0) {
+        if (delta > 250 && delta < 2000) { // Valid range: 30 to 240 BPM
           beatsPerMinute = 60.0 / (delta / 1000.0);
-          if (beatsPerMinute >= 30 && beatsPerMinute <= 220) {
+          if (beatsPerMinute >= 40 && beatsPerMinute <= 180) {
             rates[rateSpot++] = (byte)beatsPerMinute;
             rateSpot %= RATE_SIZE;
-            beatAvg = 0;
-            for (byte x = 0; x < RATE_SIZE; x++) beatAvg += rates[x];
-            beatAvg /= RATE_SIZE;
+            int total = 0;
+            int validCount = 0;
+            for (byte x = 0; x < RATE_SIZE; x++) {
+              if (rates[x] > 0) {
+                total += rates[x];
+                validCount++;
+              }
+            }
+            if (validCount > 0) beatAvg = total / validCount;
           }
         }
       }
 
-      float ratio = (float)redValue / (float)irValue;
-      spo2Val = 104.0 - (17.0 * ratio);
-      if (spo2Val > 100.0) spo2Val = 100.0;
-      if (spo2Val < 70.0)  spo2Val = 70.0;
+      // SpO2 calculation via Red/IR ratio
+      if (irValue > 0) {
+        float ratio = (float)redValue / (float)irValue;
+        float calculatedSpO2 = 104.0 - (17.0 * ratio);
+        if (calculatedSpO2 > 100.0) calculatedSpO2 = 99.0;
+        if (calculatedSpO2 < 75.0)  calculatedSpO2 = 75.0;
+        spo2Val = calculatedSpO2;
+      }
 
     } else {
-      // NO FINGER on sensor — send ZERO (not fake values)
+      // Finger removed: reset values to 0 (NEVER send fake numbers!)
       fingerDetected = false;
       beatAvg = 0;
       spo2Val = 0.0;
     }
   }
 
+  // --- B. ECG SAMPLING (AD8232) ---
   bool leadsOff = (digitalRead(LO_PLUS_PIN) == HIGH) || (digitalRead(LO_MINUS_PIN) == HIGH);
   int ecgValue  = leadsOff ? 0 : analogRead(ECG_PIN);
 
-  // --- B. PUBLISH ECG (20 Hz) ---
+  // ECG Publish @ 20 Hz (every 50 ms)
   if (now - lastEcgPublish >= 50) {
     lastEcgPublish = now;
     if (mqttClient.connected()) {
-      String ecg = "{\"sample\":" + String(ecgValue) +
-                   ",\"leads_off\":" + String(leadsOff ? "true" : "false") + "}";
-      mqttClient.publish("healthguard/ecg", ecg.c_str());
+      String ecgMsg = "{\"sample\":" + String(ecgValue) +
+                      ",\"leads_off\":" + (leadsOff ? "true" : "false") + "}";
+      mqttClient.publish("healthguard/ecg", ecgMsg.c_str());
     }
   }
 
-  // --- C. PUBLISH VITALS (1 Hz) — REAL VALUES ONLY ---
+  // --- C. VITALS PUBLISH @ 1 Hz (every 1000 ms) ---
   if (now - lastVitalsPublish >= 1000) {
     lastVitalsPublish = now;
 
-    // Temperature: Send REAL reading only (0.0 if sensor not connected)
-    float tempC = 0.0;
+    // Read temperature conversion triggered previously
     if (tempSensorReady) {
-      tempSensor.requestTemperatures();
-      float raw = tempSensor.getTempCByIndex(0);
-      if (raw != DEVICE_DISCONNECTED_C && raw > 10.0 && raw < 50.0) {
-        tempC = raw;  // REAL body temperature
+      float rawTemp = tempSensor.getTempCByIndex(0);
+      if (rawTemp != DEVICE_DISCONNECTED_C && rawTemp > 10.0 && rawTemp < 50.0) {
+        currentTempC = rawTemp; // Real body / ambient skin temperature
       }
+      tempSensor.requestTemperatures(); // Trigger next conversion asynchronously
     }
 
-    // Sensor status string
+    // Build diagnostic status string
     String status = "ONLINE (";
     status += fingerDetected ? "FINGER:YES" : "FINGER:NO";
     status += leadsOff ? "+ECG:LEADS_OFF" : "+ECG:OK";
     status += tempSensorReady ? "+TEMP:OK" : "+TEMP:DISCONNECTED";
     status += ")";
 
-    // Heart Rate & SpO2: Send REAL values (0 if no finger)
-    // NO FAKE FALLBACK VALUES — dashboard will show "Waiting for sensor"
-    float sendHR   = (float)beatAvg;    // 0 when no finger
-    float sendSpO2 = spo2Val;           // 0.0 when no finger
+    // Prepare JSON payload
+    float sendHR   = fingerDetected ? (float)beatAvg : 0.0;
+    float sendSpO2 = fingerDetected ? spo2Val : 0.0;
 
     String payload = "{";
     payload += "\"patient_id\":\"" + String(PATIENT_ID) + "\",";
     payload += "\"heart_rate\":" + String(sendHR, 1) + ",";
     payload += "\"spo2\":" + String(sendSpO2, 1) + ",";
-    payload += "\"temperature\":" + String(tempC, 2) + ",";
+    payload += "\"temperature\":" + String(currentTempC, 2) + ",";
     payload += "\"finger_detected\":" + String(fingerDetected ? "true" : "false") + ",";
     payload += "\"sensor_status\":\"" + status + "\",";
+    payload += "\"raw_ir\":" + String(irValue) + ",";
     payload += "\"timestamp\":" + String(now / 1000.0, 2);
     payload += "}";
 
+    // ALWAYS print to USB Serial for USB bridge / debugging
+    Serial.println(payload);
+
+    // If MQTT is connected over Wi-Fi, publish directly to Pi 5
     if (mqttClient.connected()) {
       mqttClient.publish("healthguard/vitals", payload.c_str());
-      Serial.print("[REAL DATA] ");
-      Serial.println(payload);
     }
   }
 
-  // --- D. SERIAL DEBUG (5 Hz) ---
-  if (now - lastSerialDebug >= 200) {
+  // --- D. SERIAL DEBUG (every 500 ms) ---
+  if (now - lastSerialDebug >= 500) {
     lastSerialDebug = now;
-    Serial.print("Finger:");
+    Serial.print("[DEBUG] Finger: ");
     Serial.print(fingerDetected ? "YES" : "NO");
-    Serial.print(" | HR:");
+    Serial.print(" (IR=");
+    Serial.print(irValue);
+    Serial.print(") | HR: ");
     Serial.print(beatAvg);
-    Serial.print(" | SpO2:");
+    Serial.print(" bpm | SpO2: ");
     Serial.print(spo2Val, 1);
-    Serial.print(" | Temp:");
-    if (tempSensorReady) {
-      float t = tempSensor.getTempCByIndex(0);
-      if (t != DEVICE_DISCONNECTED_C && t > 10.0) Serial.print(t, 1);
-      else Serial.print("--");
-    } else {
-      Serial.print("NC");
-    }
-    Serial.print(" | ECG:");
-    Serial.println(ecgValue);
+    Serial.print("% | Temp: ");
+    Serial.print(currentTempC, 1);
+    Serial.print("C | WiFi: ");
+    Serial.print(WiFi.status() == WL_CONNECTED ? "CONNECTED" : "DISCONNECTED");
+    Serial.print(" | MQTT: ");
+    Serial.println(mqttClient.connected() ? "CONNECTED" : "DISCONNECTED");
   }
 }
